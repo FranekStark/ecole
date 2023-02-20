@@ -7,22 +7,17 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <optional>
 #include <string>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 
 #include <nonstd/span.hpp>
 #include <scip/scip.h>
 
-#include "ecole/export.hpp"
-#include "ecole/scip/callback.hpp"
 #include "ecole/scip/exception.hpp"
 #include "ecole/scip/type.hpp"
 #include "ecole/utility/numeric.hpp"
 #include "ecole/utility/type-traits.hpp"
-#include "ecole/utility/unreachable.hpp"
 
 namespace ecole::scip {
 
@@ -37,20 +32,20 @@ class Scimpl;
  * tailored for the needs in Ecole.
  * This is the only interface to SCIP in the library.
  */
-class ECOLE_EXPORT Model {
+class Model {
 public:
 	/**
 	 * Construct an *initialized* model with default SCIP plugins.
 	 */
-	ECOLE_EXPORT Model();
-	ECOLE_EXPORT Model(Model&& /*other*/) noexcept;
+	Model();
+	Model(Model&& /*other*/) noexcept;
 	Model(Model const& model) = delete;
-	ECOLE_EXPORT Model(std::unique_ptr<Scimpl>&& /*other_scimpl*/);
+	Model(std::unique_ptr<Scimpl>&& /*other_scimpl*/);
 
-	ECOLE_EXPORT ~Model();
+	~Model();
 
-	ECOLE_EXPORT Model& operator=(Model&& /*other*/) noexcept;
-	ECOLE_EXPORT Model& operator=(Model const&) = delete;
+	Model& operator=(Model&& /*other*/) noexcept;
+	Model& operator=(Model const&) = delete;
 
 	/**
 	 * Access the underlying SCIP pointer.
@@ -58,49 +53,44 @@ public:
 	 * Ownership of the pointer is however not released by the Model.
 	 * This function is meant to use the original C API of SCIP.
 	 */
-	[[nodiscard]] ECOLE_EXPORT SCIP* get_scip_ptr() noexcept;
-	[[nodiscard]] ECOLE_EXPORT SCIP const* get_scip_ptr() const noexcept;
+	[[nodiscard]] SCIP* get_scip_ptr() noexcept;
+	[[nodiscard]] SCIP const* get_scip_ptr() const noexcept;
 
-	[[nodiscard]] ECOLE_EXPORT Model copy() const;
-	[[nodiscard]] ECOLE_EXPORT Model copy_orig() const;
+	[[nodiscard]] Model copy() const;
+	[[nodiscard]] Model copy_orig() const;
 
 	/**
 	 * Compare if two model share the same SCIP pointer, _i.e._ the same memory.
 	 */
-	ECOLE_EXPORT bool operator==(Model const& other) const noexcept;
-	ECOLE_EXPORT bool operator!=(Model const& other) const noexcept;
+	bool operator==(Model const& other) const noexcept;
+	bool operator!=(Model const& other) const noexcept;
 
 	/**
 	 * Construct a model by reading a problem file supported by SCIP (LP, MPS,...).
 	 */
-	ECOLE_EXPORT static Model from_file(std::filesystem::path const& filename);
+	static Model from_file(std::filesystem::path const& filename);
 
 	/**
 	 * Constuct an empty problem with empty data structures.
 	 */
-	ECOLE_EXPORT static Model prob_basic(std::string const& name = "Model");
+	static Model prob_basic(std::string const& name = "Model");
 
 	/**
 	 * Writes the Model into a file.
 	 */
-	ECOLE_EXPORT void write_problem(std::filesystem::path const& filename) const;
+	void write_problem(std::filesystem::path const& filename) const;
 
 	/**
 	 * Read a problem file into the Model.
 	 */
-	ECOLE_EXPORT void read_problem(std::string const& filename);
+	void read_problem(std::string const& filename);
 
-	/**
-	 * Change whether or not to write logging messages in the logger.
-	 */
-	ECOLE_EXPORT void set_messagehdlr_quiet(bool quiet) noexcept;
+	[[nodiscard]] std::string name() const noexcept;
+	void set_name(std::string const& name);
 
-	[[nodiscard]] ECOLE_EXPORT std::string name() const noexcept;
-	ECOLE_EXPORT void set_name(std::string const& name);
+	[[nodiscard]] SCIP_STAGE stage() const noexcept;
 
-	[[nodiscard]] ECOLE_EXPORT SCIP_STAGE stage() const noexcept;
-
-	[[nodiscard]] ECOLE_EXPORT ParamType get_param_type(std::string const& name) const;
+	[[nodiscard]] ParamType get_param_type(std::string const& name) const;
 
 	/**
 	 * Get and set parameters by their exact SCIP type.
@@ -108,9 +98,8 @@ public:
 	 * The method will throw an exception if the type is not *exactly* the one used
 	 * by SCIP.
 	 */
-	template <ParamType T>
-	ECOLE_EXPORT void set_param(std::string const& name, utility::value_or_const_ref_t<param_t<T>> value);
-	template <ParamType T> [[nodiscard]] ECOLE_EXPORT param_t<T> get_param(std::string const& name) const;
+	template <ParamType T> void set_param(std::string const& name, utility::value_or_const_ref_t<param_t<T>> value);
+	template <ParamType T> [[nodiscard]] param_t<T> get_param(std::string const& name) const;
 
 	/**
 	 * Get and set parameters with automatic casting.
@@ -122,94 +111,37 @@ public:
 	template <typename T> void set_param(std::string const& name, T value);
 	template <typename T> [[nodiscard]] T get_param(std::string const& name) const;
 
-	ECOLE_EXPORT void set_params(std::map<std::string, Param> name_values);
-	[[nodiscard]] ECOLE_EXPORT std::map<std::string, Param> get_params() const;
+	void set_params(std::map<std::string, Param> name_values);
+	[[nodiscard]] std::map<std::string, Param> get_params() const;
 
-	ECOLE_EXPORT void disable_presolve();
-	ECOLE_EXPORT void disable_cuts();
+	void disable_presolve();
+	void disable_cuts();
 
-	[[nodiscard]] ECOLE_EXPORT nonstd::span<SCIP_VAR*> variables() const noexcept;
-	[[nodiscard]] ECOLE_EXPORT nonstd::span<SCIP_VAR*> lp_branch_cands() const;
-	[[nodiscard]] ECOLE_EXPORT nonstd::span<SCIP_VAR*> pseudo_branch_cands() const;
-	[[nodiscard]] ECOLE_EXPORT nonstd::span<SCIP_COL*> lp_columns() const;
-	[[nodiscard]] ECOLE_EXPORT nonstd::span<SCIP_CONS*> constraints() const noexcept;
-	[[nodiscard]] ECOLE_EXPORT nonstd::span<SCIP_ROW*> lp_rows() const;
-	[[nodiscard]] ECOLE_EXPORT std::size_t nnz() const noexcept;
-
-	ECOLE_EXPORT void transform_prob();
-	ECOLE_EXPORT void presolve();
-	ECOLE_EXPORT void solve();
-
-	[[nodiscard]] ECOLE_EXPORT bool is_solved() const noexcept;
-	[[nodiscard]] ECOLE_EXPORT SCIP_Real primal_bound() const noexcept;
-	[[nodiscard]] ECOLE_EXPORT SCIP_Real dual_bound() const noexcept;
+	[[nodiscard]] nonstd::span<SCIP_VAR*> variables() const noexcept;
+	[[nodiscard]] nonstd::span<SCIP_VAR*> lp_branch_cands() const;
+	[[nodiscard]] nonstd::span<SCIP_VAR*> pseudo_branch_cands() const;
+	[[nodiscard]] nonstd::span<SCIP_COL*> lp_columns() const;
+	[[nodiscard]] nonstd::span<SCIP_CONS*> constraints() const noexcept;
+	[[nodiscard]] nonstd::span<SCIP_ROW*> lp_rows() const;
+	[[nodiscard]] std::size_t nnz() const noexcept;
 
 	/**
-	 * Start iterative solving.
-	 *
-	 * Iterative solving pauses when it encounters a callback and give control back to the user.
-	 * Solving must be explicitly resumed by calling ``solve_iter_continue`` repatedly.
-	 * Iterative solving will only pause on the callbacks that are explicitly passed as paramerters.
-	 *
-	 * Stoping on multiple callbacks can be achieved with:
-	 * ```
-	 * // Callback on which we want to pause..
-	 * auto const constructors = std::array<callback::DynamicConstructor, 2>{
-	 *     callback::BranchruleConstructor{},
-	 *     callback::HeuristicConstructor{},
-	 * };
-	 * auto maybe_fcall = model.solve_iter(constructors);
-	 *
-	 * // While solving has not terminated.
-	 * while (maybe_fcall.has_value()) {
-	 *     std::visit([&](auto fcall) {
-	 *         // If solving has paused on a Branchrule.
-	 *         if constexpr (std::is_same_v<decltype(fcall), scip::callback::BranchruleCall>) {
-	 *             // `fcall` holds a `BranchruleCall`.
-	 *             // Perform branching.
-	 *             maybe_fcall = model.solve_iter_continue(SCIP_BRANCHED);
-	 *         // If solving has paused on a Heuristic.
-	 *         } else if constexpr (std::is_same_v<decltype(fcall), scip::callback::HeuristicCall>) {
-	 *             // `fcall` holds a `HeuristicCall`.
-	 *             // Add solution.
-	 *             maybe_fcall = model.solve_iter_continue(SCIP_FOUNDSOL);
-	 *         }
-	 *     }, maybe_fcall.value());
-	 * }
-	 * ```
-	 *
-	 * @param arg_packs A sequence of construtors parameters defining the reverse callback to pause on.
-	 * @return The callback arguments where iterative solving has stopped, or nothing if solving has terminated.
-	 * @see solve_iter_continue
+	 * Transform, presolve, and solve problem.
 	 */
-	ECOLE_EXPORT auto solve_iter(nonstd::span<callback::DynamicConstructor const> arg_packs)
-		-> std::optional<callback::DynamicCall>;
+	void transform_prob();
+	void presolve();
+	void solve();
 
-	/**
-	 * Start iterative solving with a single callback.
-	 *
-	 * For example branching iteratively could be achieved with:
-	 * ```
-	 * auto fcall = model.solve_iter(scip::callback::BranchingConstructor{});
-	 * while (fcall.has_value()) {
-	 *     auto const cands = model.lp_branch_cands();
-	 *     scip::call(SCIPbranchVar, model.get_scip_ptr(), cands[0], nullptr, nullptr, nullptr);
-	 *     fcall = model.solve_iter_continue(SCIP_BRANCHED);
-	 * }
-	 * ```
-	 */
-	ECOLE_EXPORT auto solve_iter(callback::DynamicConstructor arg_pack) -> std::optional<callback::DynamicCall>;
+	[[nodiscard]] bool is_solved() const noexcept;
+	[[nodiscard]] SCIP_Real primal_bound() const noexcept;
+	[[nodiscard]] SCIP_Real dual_bound() const noexcept;
 
-	/**
-	 * Continue iterative solving.
-	 *
-	 * Continue until the next reverse callback is encountered.
-	 *
-	 * @param result The result given to the SCIP callback for the action taken on the current pause.
-	 * @return The callback arguments where iterative solving has stopped, or nothing if solving has terminated.
-	 * @see solve_iter_continue
-	 */
-	ECOLE_EXPORT auto solve_iter_continue(SCIP_RESULT result) -> std::optional<callback::DynamicCall>;
+	void solve_iter_start_branch();
+	void solve_iter_branch(SCIP_RESULT result);
+	SCIP_HEUR* solve_iter_start_primalsearch(int trials_per_node, int depth_freq, int depth_start, int depth_stop);
+	void solve_iter_primalsearch(SCIP_RESULT result);
+	void solve_iter_stop();
+	[[nodiscard]] bool solve_iter_is_done();
 
 private:
 	std::unique_ptr<Scimpl> scimpl;
@@ -219,45 +151,48 @@ private:
  *  Implementation of Model  *
  *****************************/
 
-template <> ECOLE_EXPORT void Model::set_param<ParamType::Bool>(std::string const& name, bool value);
-template <> ECOLE_EXPORT void Model::set_param<ParamType::Int>(std::string const& name, int value);
-template <> ECOLE_EXPORT void Model::set_param<ParamType::LongInt>(std::string const& name, SCIP_Longint value);
-template <> ECOLE_EXPORT void Model::set_param<ParamType::Real>(std::string const& name, SCIP_Real value);
-template <> ECOLE_EXPORT void Model::set_param<ParamType::Char>(std::string const& name, char value);
-template <> ECOLE_EXPORT void Model::set_param<ParamType::String>(std::string const& name, std::string const& value);
-
-template <> ECOLE_EXPORT auto Model::get_param<ParamType::Bool>(std::string const& name) const -> bool;
-template <> ECOLE_EXPORT auto Model::get_param<ParamType::Int>(std::string const& name) const -> int;
-template <> ECOLE_EXPORT auto Model::get_param<ParamType::LongInt>(std::string const& name) const -> SCIP_Longint;
-template <> ECOLE_EXPORT auto Model::get_param<ParamType::Real>(std::string const& name) const -> SCIP_Real;
-template <> ECOLE_EXPORT auto Model::get_param<ParamType::Char>(std::string const& name) const -> char;
-template <> ECOLE_EXPORT auto Model::get_param<ParamType::String>(std::string const& name) const -> std::string;
-
 namespace internal {
 
-/**
- * Safely cast between various type, throwing an exception when impossible.
- */
-template <typename To, typename From> auto cast([[maybe_unused]] From val) -> To {
-	if constexpr (std::is_pointer_v<From> && std::is_same_v<To, bool>) {
-		// Fallthrough to error. Don't convert pointers to bool.
-	} else if constexpr (utility::is_narrow_castable_v<From, To>) {
-		return utility::narrow_cast<To>(std::move(val));
-	} else if constexpr (std::is_convertible_v<From, To>) {
-		return static_cast<To>(val);
-	} else if constexpr (utility::is_variant_v<From>) {
-		return std::visit([](auto v) { return cast<To>(v); }, val);
-	} else if constexpr (std::is_same_v<From, char> && std::is_same_v<To, std::string>) {
-		return std::string{val};
-	} else if constexpr (std::is_same_v<To, char>) {
-		if constexpr (std::is_convertible_v<From, std::string_view>) {
-			if (auto const str = std::string_view{val}; str.length() == 1) {
-				return str[0];
-			}
-			// Fallthrough to error. Don't convert long string to char.
-		}
+// SFINAE default class for no available cast
+template <typename To, typename From, typename = void> struct Caster {
+	static To cast(From /*unused*/) { throw Exception("Cannot convert to the desired type"); }
+};
+
+// SFINAE class for narrow cast
+template <typename To, typename From>
+struct Caster<To, From, std::enable_if_t<utility::is_narrow_castable_v<From, To>>> {
+	static To cast(From val) { return utility::narrow_cast<To>(val); }
+};
+
+// SFINAE class for convertible but not narrowablecast
+template <typename To, typename From>
+struct Caster<To, From, std::enable_if_t<!utility::is_narrow_castable_v<From, To> && std::is_convertible_v<From, To>>> {
+	static To cast(From val) { return static_cast<To>(val); }
+};
+
+// Visit From variants.
+// Cannot static_cast a variant into one of its held value. Other way around works though.
+template <typename To, typename... VariantFrom> struct Caster<To, std::variant<VariantFrom...>> {
+	static To cast(std::variant<VariantFrom...> variant_val) {
+		return std::visit([](auto val) { return Caster<To, decltype(val)>::cast(val); }, variant_val);
 	}
-	throw ScipError::from_retcode(SCIP_PARAMETERWRONGTYPE);
+};
+
+// Pointers must not convert to bools
+template <typename From> struct Caster<bool, std::remove_cv<From>*> {
+	static bool cast(From /*unused*/) { throw Exception("Cannot convert pointers to bool"); }
+};
+
+// Convert character to string
+template <> std::string Caster<std::string, char>::cast(char val);
+
+// Convert string to character
+template <> char Caster<char, char const*>::cast(char const* val);
+template <> char Caster<char, std::string>::cast(std::string val);
+
+// Helper func to deduce From type automatically
+template <typename To, typename From> To cast(From val) {
+	return Caster<To, From>::cast(val);
 }
 
 }  // namespace internal
@@ -278,7 +213,9 @@ template <typename T> void Model::set_param(std::string const& name, T value) {
 	case ParamType::String:
 		return set_param<ParamType::String>(name, cast<std::string>(value));
 	default:
-		utility::unreachable();
+		assert(false);  // All enum value should be handled
+		// Non void return for optimized build
+		throw Exception("Could not find type for given parameter");
 	}
 }
 
@@ -298,7 +235,9 @@ template <typename T> T Model::get_param(std::string const& name) const {
 	case ParamType::String:
 		return cast<T>(get_param<ParamType::String>(name));
 	default:
-		utility::unreachable();
+		assert(false);  // All enum value should be handled
+		// Non void return for optimized build
+		throw Exception("Could not find type for given parameter");
 	}
 }
 

@@ -11,11 +11,9 @@ namespace ecole::information {
 /**
  * Empty information function.
  */
-class Nothing {
+class Nothing : public InformationFunction<NoneType> {
 public:
-	auto before_reset(scip::Model& /*model*/) -> void {}
-
-	auto extract(scip::Model& /* model */, bool /* done */) -> InformationMap<NoneType> { return {}; }
+	std::map<std::string, NoneType> extract(scip::Model& /* model */, bool /* done */) override { return {}; }
 };
 
 }  // namespace ecole::information

@@ -9,7 +9,6 @@
 #include <objscip/objmessagehdlr.h>
 
 #include "ecole/scip/exception.hpp"
-#include "ecole/utility/unreachable.hpp"
 
 namespace ecole::scip {
 
@@ -59,65 +58,65 @@ extern std::unique_ptr<SCIP_MESSAGEHDLR, MessageHandlerDeleter> message_handler;
 }  // namespace
 
 /*****************************
- *  Definition of ScipError  *
+ *  Definition of Exception  *
  *****************************/
 
-ScipError ScipError::from_retcode(SCIP_RETCODE retcode) {
+Exception Exception::from_retcode(SCIP_RETCODE retcode) {
 	auto message = ErrorCollector::collect();
 	if (!message.empty()) {
-		return ScipError{std::move(message)};
+		return Exception{std::move(message)};
 	}
 	switch (retcode) {
 	case SCIP_OKAY:
-		throw ScipError{"Normal termination must not raise exception"};
+		throw Exception{"Normal termination must not raise exception"};
 	case SCIP_ERROR:
-		return ScipError{"Unspecified error"};
+		return Exception{"Unspecified error"};
 	case SCIP_NOMEMORY:
-		return ScipError{"Insufficient memory error"};
+		return Exception{"Insufficient memory error"};
 	case SCIP_READERROR:
-		return ScipError{"File read error"};
+		return Exception{"File read error"};
 	case SCIP_WRITEERROR:
-		return ScipError{"File write error"};
+		return Exception{"File write error"};
 	case SCIP_BRANCHERROR:
-		return ScipError{"Branch error"};
+		return Exception{"Branch error"};
 	case SCIP_NOFILE:
-		return ScipError{"File not found error"};
+		return Exception{"File not found error"};
 	case SCIP_FILECREATEERROR:
-		return ScipError{"Cannot create file"};
+		return Exception{"Cannot create file"};
 	case SCIP_LPERROR:
-		return ScipError{"Error in LP solver"};
+		return Exception{"Error in LP solver"};
 	case SCIP_NOPROBLEM:
-		return ScipError{"No problem exists"};
+		return Exception{"No problem exists"};
 	case SCIP_INVALIDCALL:
-		return ScipError{"Method cannot be called at tScipError(his time in solution process"};
+		return Exception{"Method cannot be called at tException(his time in solution process"};
 	case SCIP_INVALIDDATA:
-		return ScipError{"Method cannot be called with this type of data"};
+		return Exception{"Method cannot be called with this type of data"};
 	case SCIP_INVALIDRESULT:
-		return ScipError{"Method returned an invalid result code"};
+		return Exception{"Method returned an invalid result code"};
 	case SCIP_PLUGINNOTFOUND:
-		return ScipError{"A required plugin was not found"};
+		return Exception{"A required plugin was not found"};
 	case SCIP_PARAMETERUNKNOWN:
-		return ScipError{"The parameter with the given name was not found"};
+		return Exception{"The parameter with the given name was not found"};
 	case SCIP_PARAMETERWRONGTYPE:
-		return ScipError{"The parameter is not of the expected type"};
+		return Exception{"The parameter is not of the expected type"};
 	case SCIP_PARAMETERWRONGVAL:
-		return ScipError{"The value is invalid for the given parameter"};
+		return Exception{"The value is invalid for the given parameter"};
 	case SCIP_KEYALREADYEXISTING:
-		return ScipError{"The given key is already existing in table"};
+		return Exception{"The given key is already existing in table"};
 	case SCIP_MAXDEPTHLEVEL:
-		return ScipError{"Maximal branching depth level exceeded"};
+		return Exception{"Maximal branching depth level exceeded"};
 	default:
-		utility::unreachable();
+		return Exception{"Invalid return code"};
 	}
 }
 
-void scip::ScipError::reset_message_capture() {
+void scip::Exception::reset_message_capture() {
 	ErrorCollector::clear();
 }
 
-scip::ScipError::ScipError(std::string message_) : message(std::move(message_)) {}
+scip::Exception::Exception(std::string message_) : message(std::move(message_)) {}
 
-const char* scip::ScipError::what() const noexcept {
+const char* scip::Exception::what() const noexcept {
 	return message.c_str();
 }
 
@@ -167,7 +166,7 @@ auto make_unique_hander() {
 		auto const retcode = SCIPcreateObjMessagehdlr(&raw_handler, error_collector.release(), true);
 		assert(raw_handler != nullptr);
 		if (retcode != SCIP_OKAY) {
-			throw scip::ScipError::from_retcode(retcode);
+			throw scip::Exception::from_retcode(retcode);
 		}
 	}
 

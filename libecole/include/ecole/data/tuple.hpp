@@ -7,7 +7,7 @@
 
 namespace ecole::data {
 
-template <typename... Functions> class TupleFunction {
+template <typename... Functions> class TupleFunction : public DataFunction<std::tuple<trait::data_of_t<Functions>...>> {
 public:
 	using DataTuple = std::tuple<trait::data_of_t<Functions>...>;
 
@@ -19,12 +19,12 @@ public:
 	TupleFunction(std::tuple<Functions...> functions) : data_functions{std::move(functions)} {}
 
 	/** Call before_reset on all functions. */
-	auto before_reset(scip::Model& model) -> void {
+	void before_reset(scip::Model& model) override {
 		std::apply([&model](auto&... functions) { ((functions.before_reset(model)), ...); }, data_functions);
 	}
 
 	/** Return data from all functions as a tuple. */
-	auto extract(scip::Model& model, bool done) -> DataTuple {
+	DataTuple extract(scip::Model& model, bool done) override {
 		return std::apply(
 			[&model, done](auto&... functions) { return std::tuple{functions.extract(model, done)...}; }, data_functions);
 	}

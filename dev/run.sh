@@ -73,7 +73,7 @@ function execute {
 # Wrap call and set PYTHONPATH
 function execute_pythonpath {
 	if [ "${fix_pythonpath}" = "true" ]; then
-		execute export PYTHONPATH="${cmake_build_dir}/python/ecole${PYTHONPATH+:}${PYTHONPATH:-}"
+		execute export PYTHONPATH="${build_dir}/python${PYTHONPATH+:}${PYTHONPATH:-}"
 		execute "$@"
 		execute unset PYTHONPATH
 	else
@@ -90,8 +90,8 @@ function configure {
 	if [ "${warnings_as_errors}" = "true" ]; then
 		extra_args+=("-Werror=dev" "-D" "WARNINGS_AS_ERRORS=ON")
 	fi
-	execute cmake -S "${source_dir}" -B "${cmake_build_dir}" -D ECOLE_BUILD_TESTS=ON -D ECOLE_BUILD_BENCHMARKS=ON ${extra_args[@]+"${extra_args[@]}"}
-	execute ln -nfs "${cmake_build_dir}/compile_commands.json"
+	execute cmake -S "${source_dir}" -B "${build_dir}" -D ECOLE_BUILD_TESTS=ON -D ECOLE_BUILD_BENCHMARKS=ON ${extra_args[@]+"${extra_args[@]}"}
+	execute ln -nfs "${build_dir}/compile_commands.json"
 }
 
 
@@ -111,7 +111,7 @@ function build_all {
 
 
 function cmake_build {
-	execute cmake --build "${cmake_build_dir}" --parallel --target "${1-all}" "${@:2}"
+	execute cmake --build "${build_dir}" --parallel --target "${1-all}" "${@:2}"
 }
 
 
@@ -177,7 +177,7 @@ function test_lib {
 		if [ "${fail_fast}" = "true" ]; then
 			extra_args+=("--abort")
 		fi
-		execute "${cmake_build_dir}/libecole/tests/ecole-lib-test" ${extra_args[@]+"${extra_args[@]}"}
+		execute "${build_dir}/libecole/tests/ecole-lib-test" ${extra_args[@]+"${extra_args[@]}"}
 	else
 		log "Skipping ${FUNCNAME[0]} as unchanged since ${rev}."
 	fi
@@ -216,7 +216,7 @@ function test_py {
 
 
 function test_doc {
-	if files_have_changed 'doc' 'python'; then
+	if files_have_changed 'doc' 'python/src'; then
 		if_rebuild_then build_doc
 		local extra_args=("$@")
 		if [ "${warnings_as_errors}" = "true" ]; then
@@ -231,22 +231,12 @@ function test_doc {
 
 
 function file_version {
-	local -r version_text="$(cat "${source_dir}/VERSION")"
-
-	function find_version {
-		local -r version="${1}"
-		local -r regex="${version}[[:space:]]+(\.?[[:alnum:]]+)"
-		if [[ "${version_text}" =~ $regex ]]; then
-			echo "${BASH_REMATCH[1]}"
-		fi
-	}
-
-	local -r file_major="$(find_version 'VERSION_MAJOR')"
-	local -r file_minor="$(find_version 'VERSION_MINOR')"
-	local -r file_patch="$(find_version 'VERSION_PATCH')"
-	local -r file_pre="$(find_version 'VERSION_PRE')"
-	local -r file_post="$(find_version 'VERSION_POST')"
-	local -r file_dev="$(find_version 'VERSION_DEV')"
+	local -r file_major="$(awk '/VERSION_MAJOR/{print $2}' "${source_dir}/VERSION")"
+	local -r file_minor="$(awk '/VERSION_MINOR/{print $2}' "${source_dir}/VERSION")"
+	local -r file_patch="$(awk '/VERSION_PATCH/{print $2}' "${source_dir}/VERSION")"
+	local -r file_pre="$(awk '/VERSION_PRE/{print $2}' "${source_dir}/VERSION")"
+	local -r file_post="$(awk '/VERSION_POST/{print $2}' "${source_dir}/VERSION")"
+	local -r file_dev="$(awk '/VERSION_DEV/{print $2}' "${source_dir}/VERSION")"
 	local version="${file_major:?}.${file_minor:?}.${file_patch:?}"
 	version+="${file_pre}${file_post}${file_dev}"
 	echo "${version}"
@@ -293,7 +283,6 @@ function git_version {
 }
 
 
-# Test that the git version matches the version in the source code.
 function test_version {
 	# Without args, use the version from git
 	if [ -z "${1+x}" ]; then
@@ -317,49 +306,6 @@ function check_code {
 		extra_args+=("--all-files")
 	fi
 	execute pre-commit run "${extra_args[@]}"
-}
-
-
-# Install libecole in the given folder.
-function install_lib {
-	if_rebuild_then cmake_build ecole-lib
-	execute cmake --install "${cmake_build_dir}" --prefix "${1-${build_dir}/local}" "${@:2}"
-}
-
-
-# Test the intallation of libecole withe the cmake example.
-function test_example_libecole {
-	local -r install_dir="${1-${build_dir}/local}"
-	if_rebuild_then install_lib "${install_dir}"
-	local -r ecole_dir="$(find "${install_dir}" -name "EcoleConfig.cmake" | head -1 | xargs dirname | xargs realpath)"
-	local -r example_build_dir="${build_dir}/examples"
-	execute cmake -B "${example_build_dir}" -S "${source_dir}/examples/libecole" -D Ecole_DIR="${ecole_dir}"
-	execute cmake --build "${example_build_dir}"
-	execute "${example_build_dir}/branching"
-}
-
-
-# Test the configuring example with easy parameters
-function test_example_configuring {
-	if_rebuild_then build_py
-	local -r in_nb="${source_dir}/examples/configuring-bandits/example.ipynb"
-	local -r out_nb="${build_dir}/examples/configuring-bandits/example.ipynb"
-	execute mkdir -p "$(dirname "${out_nb}")"
-	execute_pythonpath python -m papermill.cli --no-progress-bar "${in_nb}" "${out_nb}" \
-		-p train_n_items 100 -p train_n_bids 100 \
-		-p optim_n_iters 2 -p optim_n_burnins 1 \
-		-p test_n_evals 2 -p test_n_items 100 -p test_n_bids 100 \
-		"$@"
-}
-
-# Test the branching example with easy parameters
-function test_example_branching {
-	if_rebuild_then build_py
-	local -r in_nb="${source_dir}/examples/branching-imitation/example.ipynb"
-	local -r out_nb="${build_dir}/examples/branching-imitation/example.ipynb"
-	execute mkdir -p "$(dirname "${out_nb}")"
-	execute_pythonpath python -m papermill.cli --no-progress-bar "${in_nb}" "${out_nb}" \
-		-p DATA_MAX_SAMPLES 3 -p NB_EPOCHS 2 -p NB_EVAL_INSTANCES 2 "$@"
 }
 
 
@@ -400,31 +346,33 @@ function deploy_doc_locally {
 }
 
 
-# Build Python source distribution and wheel (from the sdist).
-# FIXME wheel is missing MacOS version.
-function build_dist {
+# Build Python source distribution.
+function build_sdist {
 	local -r dist_dir="${1:-"${build_dir}/dist"}"
-	execute python -m build --outdir="${dist_dir}" "${@:2}"
+	execute python "${source_dir}/setup.py" sdist --dist-dir="${dist_dir}"
 }
 
 
-# Install wheel into a virtual environment.
-function test_dist {
+# Install sdist into a virtual environment.
+function test_sdist {
 	local -r dist_dir="${build_dir}/dist"
-	if_rebuild_then build_dist "${dist_dir}"
+	if_rebuild_then build_sdist "${dist_dir}"
 	local -r venv="${build_dir}/venv"
-	execute python -m venv --upgrade-deps "${venv}"
-	# FIXME should install wheel but it is missing MacOS version
-	local -r sdist=("${dist_dir}"/ecole-*.tar.gz)
-	execute "${venv}/bin/python" -m pip install --ignore-installed "${sdist[0]}"
-	execute "${venv}/bin/python" -m ecole.doctor
+	execute python -m venv --system-site-packages "${venv}"
+	local -r sdists=("${dist_dir}"/ecole-*.tar.gz)
+	execute "${venv}/bin/python" -m pip install --ignore-installed "${sdists[@]}"
+	local extra_args=("$@")
+	if [ "${fail_fast}" = "true" ]; then
+		extra_args+=("--exitfirst")
+	fi
+	execute "${venv}/bin/python" -m pytest "${source_dir}/python/tests" "${extra_args[@]}"
 }
 
 
 # Deploy sdist to PyPI. Set TWINE_USERNAME and TWINE_PASSWORD environment variables or pass them as arguments.
 function deploy_sdist {
 	local -r dist_dir="${build_dir}/dist"
-	if_rebuild_then build_dist "${dist_dir}" --sdist
+	if_rebuild_then build_sdist "${dist_dir}"
 	local -r strict="$([ "${warnings_as_errors}" = "true" ] && echo -n '--strict')"
 	local -r sdists=("${dist_dir}"/ecole-*.tar.gz)
 	execute python -m twine check "${strict}" "${sdists[@]}"
@@ -440,7 +388,6 @@ function help {
 	echo "  --dry-run|--no-dry-run (${dry_run})"
 	echo "  --source-dir=<dir> (${source_dir})"
 	echo "  --build-dir=<dir> (${build_dir})"
-	echo "  --cmake-build-dir=<dir> (${cmake_build_dir})"
 	echo "  --source-doc-dir=<dir> (${source_doc_dir})"
 	echo "  --build-doc-dir=<dir> (${build_doc_dir})"
 	echo "  --warnings-as-errors|--no-warnings-as-errors (${warnings_as_errors})"
@@ -454,10 +401,9 @@ function help {
 	echo "Commands:"
 	echo "  help, configure,"
 	echo "  build-lib, build-lib-test, build-py, build-doc, build-all"
-	echo "  test-lib, test-py, test-doc, test-version,"
-	echo "  test-example-libecole, test-example-configuring, test-all"
+	echo "  test-lib, test-py, test-doc, test-version, test-all"
 	echo "  check-code"
-	echo "  build-dist, test-dist, deploy-sdist"
+	echo "  build-sdist, test-sdist, deploy-sdist"
 	echo ""
 	echo "Example:"
 	echo "  ${BASH_SOURCE[0]} --warnings-as-errors configure -D ECOLE_DEVELOPER=ON -- test-lib -- test-py --no-slow"
@@ -554,10 +500,8 @@ function run_main {
 	local dry_run="false"
 	# Where the top-level CMakeLists.txt is.
 	local source_dir="${__ECOLE_DIR__:?}"
-	# A top level folder for all build artifacts
-	local build_dir="build"
 	# Where is the CMake build folder with the test.
-	local cmake_build_dir="${build_dir}/cmake"
+	local build_dir="build"
 	# Where to find sphinx conf.py.
 	local source_doc_dir="${__ECOLE_DIR__}/docs"
 	# Where to output the doc.

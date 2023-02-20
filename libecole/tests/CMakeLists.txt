@@ -10,11 +10,9 @@ add_executable(
 	src/test-random.cpp
 
 	src/utility/test-chrono.cpp
-	src/utility/test-coroutine.cpp
 	src/utility/test-vector.cpp
 	src/utility/test-random.cpp
 	src/utility/test-graph.cpp
-	src/utility/test-sparse-matrix.cpp
 
 	src/scip/test-scimpl.cpp
 	src/scip/test-model.cpp
@@ -34,27 +32,28 @@ add_executable(
 	src/data/test-multiary.cpp
 	src/data/test-parser.cpp
 	src/data/test-timed.cpp
-	src/data/test-dynamic.cpp
 
-	src/reward/test-lp-iterations.cpp
-	src/reward/test-is-done.cpp
-	src/reward/test-n-nodes.cpp
-	src/reward/test-solving-time.cpp
-	src/reward/test-bound-integral.cpp
+	src/reward/test-lpiterations.cpp
+	src/reward/test-isdone.cpp
+	src/reward/test-nnodes.cpp
+	src/reward/test-solvingtime.cpp
+	src/reward/test-boundintegral.cpp
 
-	src/observation/test-node-bipartite.cpp
-	src/observation/test-milp-bipartite.cpp
-	src/observation/test-strong-branching-scores.cpp
+	src/observation/test-nodebipartite.cpp
+	src/observation/test-milpbipartite.cpp
+	src/observation/test-strongbranchingscores.cpp
 	src/observation/test-pseudocosts.cpp
 	src/observation/test-khalil-2016.cpp
 	src/observation/test-hutter-2011.cpp
 
-	src/dynamics/test-parts.cpp
 	src/dynamics/test-branching.cpp
+	src/dynamics/test-branching-sum.cpp
 	src/dynamics/test-configuring.cpp
-	src/dynamics/test-primal-search.cpp
+	src/dynamics/test-primalsearch.cpp
 
 	src/environment/test-environment.cpp
+
+	src/utility/test-sparse-matrix.cpp
 )
 
 target_compile_definitions(
@@ -64,26 +63,27 @@ target_compile_definitions(
 target_include_directories(
 	ecole-lib-test
 	PRIVATE
-		"${CMAKE_CURRENT_SOURCE_DIR}/src"
-		"${${PROJECT_NAME}_SOURCE_DIR}/libecole/src"  # Add libecole private include
+		${CMAKE_CURRENT_SOURCE_DIR}/src
+		${CMAKE_SOURCE_DIR}/libecole/src  # Add libecole private include
 )
 
-# File that download the dependencies of libecole
-include(dependencies/private.cmake)
-
-find_package(Catch2 REQUIRED)
+find_or_download_package(
+	NAME Catch2
+	URL https://github.com/catchorg/Catch2/archive/v2.13.4.tar.gz
+	URL_HASH SHA256=e7eb70b3d0ac2ed7dcf14563ad808740c29e628edde99e973adad373a2b5e4df
+	CONFIGURE_ARGS -D CMAKE_BUILD_TYPE=Release
+)
 
 target_link_libraries(
 	ecole-lib-test
 	PRIVATE
-		Ecole::ecole-lib
+		Ecole::lib
+		Ecole::warnings
+		Ecole::sanitizers
 		range-v3::range-v3
 		Catch2::Catch2
 		libscip
 )
-
-ecole_target_add_compile_warnings(ecole-lib)
-ecole_target_add_sanitizers(ecole-lib)
 
 include("${Catch2_DIR}/Catch.cmake")
 enable_testing()

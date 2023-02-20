@@ -24,16 +24,16 @@ template <typename Clock, typename Func> auto time(Func&& func) -> double {
 
 }  // namespace internal
 
-template <typename Function> class TimedFunction {
+template <typename Function> class TimedFunction : public DataFunction<double> {
 public:
 	TimedFunction(Function func_, bool wall_ = false) : func{std::move(func_)}, wall{wall_} {}
 	TimedFunction(bool wall_ = false) : wall{wall_} {}
 
 	/** Reset the function being timed. **/
-	auto before_reset(scip::Model& model) -> void { func.before_reset(model); }
+	auto before_reset(scip::Model& model) -> void override { func.before_reset(model); }
 
 	/** Time the extract method of the function. **/
-	auto extract(scip::Model& model, bool done) -> double {
+	auto extract(scip::Model& model, bool done) -> double override {
 		if (wall) {
 			return internal::time<std::chrono::steady_clock>([&]() { return func.extract(model, done); });
 		}

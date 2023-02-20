@@ -5,16 +5,15 @@
 #include <string>
 #include <vector>
 
-#include "ecole/export.hpp"
 #include "ecole/instance/abstract.hpp"
 #include "ecole/random.hpp"
 
 namespace ecole::instance {
 
-class ECOLE_EXPORT FileGenerator : public InstanceGenerator {
+class FileGenerator : public InstanceGenerator {
 public:
-	struct ECOLE_EXPORT Parameters {
-		enum struct ECOLE_EXPORT SamplingMode { replace, remove, remove_and_repeat };
+	struct Parameters {
+		enum struct SamplingMode { replace, remove, remove_and_repeat };
 
 		// FIXME Made this a string for easier bining while waiting for PyBind 2.7
 		// https://github.com/pybind/pybind11/pull/2730
@@ -23,18 +22,18 @@ public:
 		SamplingMode sampling_mode = SamplingMode::remove_and_repeat;
 	};
 
-	ECOLE_EXPORT FileGenerator(Parameters parameters, RandomGenerator rng);
-	ECOLE_EXPORT FileGenerator(Parameters parameters);
-	ECOLE_EXPORT FileGenerator();
+	FileGenerator(Parameters parameters, RandomEngine random_engine);
+	FileGenerator(Parameters parameters);
+	FileGenerator();
 
-	ECOLE_EXPORT auto next() -> scip::Model override;
-	ECOLE_EXPORT void seed(Seed seed) override;
-	[[nodiscard]] ECOLE_EXPORT auto done() const -> bool override;
+	auto next() -> scip::Model override;
+	void seed(Seed seed) override;
+	[[nodiscard]] auto done() const -> bool override;
 
-	[[nodiscard]] ECOLE_EXPORT auto get_parameters() const noexcept -> Parameters const& { return parameters; }
+	[[nodiscard]] auto get_parameters() const noexcept -> Parameters const& { return parameters; }
 
 private:
-	RandomGenerator rng;
+	RandomEngine random_engine;
 	Parameters parameters;
 	std::vector<std::filesystem::path> files;
 	std::size_t files_remaining;

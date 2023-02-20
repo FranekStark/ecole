@@ -22,22 +22,6 @@ auto Graph::Edge::operator==(Edge const& other) const noexcept -> bool {
 	return ((first == other.first) && (second == other.second)) || ((first == other.second) && (second == other.first));
 }
 
-auto Graph::Edge::operator!=(Edge const& other) const noexcept -> bool {
-	return !(*this == other);
-}
-
-auto Graph::n_nodes() const noexcept -> std::size_t {
-	return edges.size();
-}
-
-auto Graph::degree(Node n) const noexcept -> std::size_t {
-	return edges[n].size();
-}
-
-auto Graph::neighbors(Node n) const noexcept -> robin_hood::unordered_flat_set<Node> const& {
-	return edges[n];
-}
-
 auto Graph::are_connected(Node popular, Node unpopular) const -> bool {
 	return neighbors(unpopular).contains(popular);
 }
@@ -64,7 +48,7 @@ void Graph::reserve(std::size_t degree) {
 	}
 }
 
-auto Graph::erdos_renyi(std::size_t n_nodes, double edge_probability, RandomGenerator& rng) -> Graph {
+auto Graph::erdos_renyi(std::size_t n_nodes, double edge_probability, RandomEngine& random_engine) -> Graph {
 	// Allocate adjacency lists for the expected approximate number of neighbors in an Erdos Renyi graph.
 	// Computed as the expectation of a Binomial.
 	auto graph = Graph{n_nodes};
@@ -75,7 +59,7 @@ auto Graph::erdos_renyi(std::size_t n_nodes, double edge_probability, RandomGene
 	auto rand = std::uniform_real_distribution<double>{0.0, 1.0};
 	for (Node n1 = 0; n1 < n_nodes; ++n1) {
 		for (Node n2 = n1 + 1; n2 < n_nodes; ++n2) {
-			if (rand(rng) < edge_probability) {
+			if (rand(random_engine) < edge_probability) {
 				graph.add_edge({n1, n2});
 			}
 		}
@@ -84,7 +68,7 @@ auto Graph::erdos_renyi(std::size_t n_nodes, double edge_probability, RandomGene
 	return graph;
 }
 
-auto Graph::barabasi_albert(std::size_t n_nodes, std::size_t affinity, RandomGenerator& rng) -> Graph {
+auto Graph::barabasi_albert(std::size_t n_nodes, std::size_t affinity, RandomEngine& random_engine) -> Graph {
 	if (affinity < 1 || affinity >= n_nodes) {
 		throw std::invalid_argument{"Affinity must be between 1 and the number of nodes."};
 	}
@@ -109,7 +93,7 @@ auto Graph::barabasi_albert(std::size_t n_nodes, std::size_t affinity, RandomGen
 	// Other node grow the graph one by one
 	for (Node n = affinity + 1; n < n_nodes; ++n) {
 		// They are linked to `affinity` existing node with probability proportional to degree
-		for (auto neighbor : utility::arg_choice(affinity, get_degrees(n), rng)) {
+		for (auto neighbor : utility::arg_choice(affinity, get_degrees(n), random_engine)) {
 			graph.add_edge({n, neighbor});
 		}
 	}
@@ -149,7 +133,6 @@ auto best_clique_candidates(set<Graph::Node> const& neighborhood, map<Graph::Nod
 	std::copy_if(neighborhood.begin(), neighborhood.end(), std::back_inserter(candidates), in_leftover_nodes);
 	// Decreasing sort by degree using > comparison.
 	auto cmp_degrees = [&leftover_nodes](auto node1, auto node2) {
-		// NOLINTNEXTLINE(bugprone-lambda-function-name)  __func__ is used in assert macro.
 		assert(leftover_nodes.contains(node1) && leftover_nodes.contains(node2));
 		return leftover_nodes.find(node1)->second > leftover_nodes.find(node2)->second;
 	};

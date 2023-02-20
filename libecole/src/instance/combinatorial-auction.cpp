@@ -25,18 +25,18 @@ namespace ecole::instance {
  *  CombinatorialAuctionGenerator methods  *
  *******************************************/
 
-CombinatorialAuctionGenerator::CombinatorialAuctionGenerator(Parameters parameters_, RandomGenerator rng_) :
-	rng{rng_}, parameters{parameters_} {}
+CombinatorialAuctionGenerator::CombinatorialAuctionGenerator(Parameters parameters_, RandomEngine random_engine_) :
+	random_engine{random_engine_}, parameters{parameters_} {}
 CombinatorialAuctionGenerator::CombinatorialAuctionGenerator(Parameters parameters_) :
-	CombinatorialAuctionGenerator{parameters_, ecole::spawn_random_generator()} {}
+	CombinatorialAuctionGenerator{parameters_, ecole::spawn_random_engine()} {}
 CombinatorialAuctionGenerator::CombinatorialAuctionGenerator() : CombinatorialAuctionGenerator(Parameters{}) {}
 
 scip::Model CombinatorialAuctionGenerator::next() {
-	return generate_instance(parameters, rng);
+	return generate_instance(parameters, random_engine);
 }
 
 void CombinatorialAuctionGenerator::seed(Seed seed) {
-	rng.seed(seed);
+	random_engine.seed(seed);
 }
 
 namespace {
@@ -74,13 +74,13 @@ private:
  * Samples n_samples values from a weighted distribution defined by the weights.
  * The values are in the range of [1, weights.size()].
  */
-auto arg_choice_without_replacement(std::size_t n_samples, xvector<double> weights, RandomGenerator& rng) {
+auto arg_choice_without_replacement(std::size_t n_samples, xvector<double> weights, RandomEngine& random_engine) {
 	auto const wc = xt::eval(xt::cumsum(weights));
 	auto weight_dist = std::uniform_real_distribution<double>{0, wc[wc.size() - 1]};
 
 	xvector<std::size_t> indices({n_samples});
 	for (auto& idx : indices) {
-		const auto u = weight_dist(rng);
+		const auto u = weight_dist(random_engine);
 		idx = static_cast<std::size_t>(std::upper_bound(wc.cbegin(), wc.cend(), u) - wc.cbegin());
 	}
 	return indices;
@@ -91,12 +91,11 @@ auto choose_next_item(
 	xvector<std::size_t> const& bundle_mask,
 	xvector<double> const& interests,
 	xmatrix<double> const& compats,
-	RandomGenerator& rng) {
-
-	auto const compats_masked = compats * bundle_mask;
-	auto const compats_masked_mean = xt::mean(compats_masked, 1);
+	RandomEngine& random_engine) {
+	auto const compats_masked = xt::index_view(compats, bundle_mask);
+	auto const compats_masked_mean = xt::sum(compats_masked, 0);
 	auto const probs = xt::eval((1 - bundle_mask) * interests * compats_masked_mean);
-	return arg_choice_without_replacement(1, probs, rng)(0);
+	return arg_choice_without_replacement(1, probs, random_engine)(0);
 }
 
 /** Gets price of the bundle */
@@ -122,16 +121,16 @@ auto get_bundle(
 	bool integers,
 	double additivity,
 	double add_item_prob,
-	RandomGenerator& rng) {
+	RandomEngine& random_engine) {
 
-	auto item = arg_choice_without_replacement(1, private_interests, rng)(0);
+	auto item = arg_choice_without_replacement(1, private_interests, random_engine)(0);
 
 	auto bundle_mask = xvector<std::size_t>({n_items}, 0);
 	bundle_mask[item] = 1;
 
 	// add additional items, according to bidder interests and item compatibilities
 	while (true) {
-		double sampled_prob = xt::random::rand({1}, 0.0, 1.0, rng)[0];
+		double sampled_prob = xt::random::rand({1}, 0.0, 1.0, random_engine)[0];
 		if (sampled_prob >= add_item_prob) {
 			break;
 		}
@@ -140,7 +139,7 @@ auto get_bundle(
 			break;
 		}
 
-		item = choose_next_item(bundle_mask, private_interests, compats, rng);
+		item = choose_next_item(bundle_mask, private_interests, compats, random_engine);
 		bundle_mask[item] = 1;
 	}
 
@@ -160,7 +159,7 @@ auto get_substitute_bundles(
 	std::size_t n_items,
 	bool integers,
 	double additivity,
-	RandomGenerator& rng) {
+	RandomEngine& random_engine) {
 
 	// get substitute bundles
 	std::vector<std::tuple<Bundle, Price>> sub_bundles{};
@@ -176,7 +175,7 @@ auto get_substitute_bundles(
 			if (xt::sum(sub_bundle_mask)() >= bundle.size()) {
 				break;
 			}
-			item = choose_next_item(sub_bundle_mask, private_interests, compats, rng);
+			item = choose_next_item(sub_bundle_mask, private_interests, compats, random_engine);
 			sub_bundle_mask[item] = 1;
 		}
 
@@ -295,7 +294,7 @@ auto get_bids(
 	double budget_factor,
 	double resale_factor,
 	Logger logger,
-	RandomGenerator& rng) {
+	RandomEngine& random_engine) {
 
 	std::size_t n_dummy_items = 0;
 	std::size_t bid_index = 0;
@@ -304,14 +303,14 @@ auto get_bids(
 	while (bid_index < n_bids) {
 
 		// bidder item values (buy price) and interests
-		auto const private_interests = xt::eval(xt::random::rand({n_items}, 0.0, 1.0, rng));
+		auto const private_interests = xt::eval(xt::random::rand({n_items}, 0.0, 1.0, random_engine));
 		auto const private_values = xt::eval(values + max_value * value_deviation * (2 * private_interests - 1));
 
 		// substitutable bids of this bidder
 		std::map<Bundle, Price> bidder_bids = {};
 
-		auto [bundle, price] =
-			get_bundle(compats, private_interests, private_values, n_items, integers, additivity, add_item_prob, rng);
+		auto [bundle, price] = get_bundle(
+			compats, private_interests, private_values, n_items, integers, additivity, add_item_prob, random_engine);
 
 		// restart bid if price < 0
 		if (price < 0) {
@@ -323,8 +322,8 @@ auto get_bids(
 		bidder_bids[bundle] = price;
 
 		// get substitute bundles
-		auto substitute_bundles =
-			get_substitute_bundles(bundle, compats, private_interests, private_values, n_items, integers, additivity, rng);
+		auto substitute_bundles = get_substitute_bundles(
+			bundle, compats, private_interests, private_values, n_items, integers, additivity, random_engine);
 
 		// add bundles to bidder_bids
 		add_bundles(
@@ -397,7 +396,7 @@ auto add_constraints(SCIP* scip, xvector<SCIP_VAR*> vars, std::vector<Bundle> co
  *  CombinatorialAuctionGenerator::generate_instance  *
  ******************************************************/
 
-scip::Model CombinatorialAuctionGenerator::generate_instance(Parameters parameters, RandomGenerator& rng) {
+scip::Model CombinatorialAuctionGenerator::generate_instance(Parameters parameters, RandomEngine& random_engine) {
 
 	// check that parameters are valid
 	if (!(parameters.max_value >= parameters.min_value)) {
@@ -413,11 +412,12 @@ scip::Model CombinatorialAuctionGenerator::generate_instance(Parameters paramete
 	auto logger = Logger(parameters.warnings);
 
 	// get values
-	auto const rand_val = xt::eval(xt::random::rand({parameters.n_items}, 0.0, 1.0, rng));
+	auto const rand_val = xt::eval(xt::random::rand({parameters.n_items}, 0.0, 1.0, random_engine));
 	auto const values = xt::eval(parameters.min_value + (parameters.max_value - parameters.min_value) * rand_val);
 
 	// get compatibilities
-	auto const compats_rand = xt::eval(xt::random::rand({parameters.n_items, parameters.n_items}, 0.0, 1.0, rng));
+	auto const compats_rand =
+		xt::eval(xt::random::rand({parameters.n_items, parameters.n_items}, 0.0, 1.0, random_engine));
 	auto compats = xt::eval(xt::triu(compats_rand, 1));
 	compats += xt::transpose(compats);
 	compats /= xt::sum(compats, 1);
@@ -437,7 +437,7 @@ scip::Model CombinatorialAuctionGenerator::generate_instance(Parameters paramete
 		parameters.budget_factor,
 		parameters.resale_factor,
 		logger,
-		rng);
+		random_engine);
 
 	// create scip model
 	auto model = scip::Model::prob_basic();
@@ -449,8 +449,8 @@ scip::Model CombinatorialAuctionGenerator::generate_instance(Parameters paramete
 	std::vector<Bundle> bids_per_item{parameters.n_items + n_dummy_items};
 	std::size_t i = 0;
 	for (auto const& [bundle, _] : bids) {
-		for (auto item : bundle) {
-			bids_per_item[item].push_back(i);
+		for (auto j : bundle) {
+			bids_per_item[j].push_back(i);
 		}
 		++i;
 	}

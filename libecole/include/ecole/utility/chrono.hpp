@@ -2,8 +2,6 @@
 
 #include <chrono>
 
-#include "ecole/export.hpp"
-
 namespace ecole::utility {
 
 /**
@@ -15,7 +13,7 @@ namespace ecole::utility {
  *
  * The implementation uses OS dependent functionality.
  */
-class ECOLE_EXPORT cpu_clock {
+class cpu_clock {
 public:
 	using duration = std::chrono::nanoseconds;
 	using rep = duration::rep;
@@ -23,7 +21,7 @@ public:
 	using time_point = std::chrono::time_point<cpu_clock>;
 	static bool constexpr is_steady = true;
 
-	ECOLE_EXPORT static auto now() -> time_point;
+	static auto now() -> time_point;
 };
 
 }  // namespace ecole::utility

@@ -12,24 +12,19 @@
 #include <scip/scip.h>
 #include <scip/scipdefplugins.h>
 
-#include "ecole/scip/callback.hpp"
 #include "ecole/scip/exception.hpp"
 #include "ecole/scip/model.hpp"
 #include "ecole/scip/scimpl.hpp"
+
 #include "ecole/scip/utils.hpp"
-#include "ecole/utility/unreachable.hpp"
 
 namespace ecole::scip {
 
-Model::Model() : Model{std::make_unique<Scimpl>()} {
-	scip::call(SCIPincludeDefaultPlugins, get_scip_ptr());
-}
+Model::Model() : scimpl(std::make_unique<Scimpl>()) {}
 
 Model::Model(Model&&) noexcept = default;
 
-Model::Model(std::unique_ptr<Scimpl>&& other_scimpl) : scimpl(std::move(other_scimpl)) {
-	set_messagehdlr_quiet(true);
-}
+Model::Model(std::unique_ptr<Scimpl>&& other_scimpl) : scimpl(std::move(other_scimpl)) {}
 
 Model::~Model() = default;
 
@@ -78,10 +73,6 @@ void Model::read_problem(std::string const& filename) {
 	scip::call(SCIPreadProb, get_scip_ptr(), filename.c_str(), nullptr);
 }
 
-void Model::set_messagehdlr_quiet(bool quiet) noexcept {
-	SCIPsetMessagehdlrQuiet(get_scip_ptr(), static_cast<SCIP_Bool>(quiet));
-}
-
 std::string Model::name() const noexcept {
 	return SCIPgetProbName(const_cast<SCIP*>(get_scip_ptr()));
 }
@@ -97,7 +88,7 @@ SCIP_STAGE Model::stage() const noexcept {
 ParamType Model::get_param_type(std::string const& name) const {
 	auto* scip_param = SCIPgetParam(const_cast<SCIP*>(get_scip_ptr()), name.c_str());
 	if (scip_param == nullptr) {
-		throw scip::ScipError::from_retcode(SCIP_PARAMETERUNKNOWN);
+		throw scip::Exception(fmt::format("parameter <{}> unknown", name));
 	}
 	switch (SCIPparamGetType(scip_param)) {
 	case SCIP_PARAMTYPE_BOOL:
@@ -113,7 +104,9 @@ ParamType Model::get_param_type(std::string const& name) const {
 	case SCIP_PARAMTYPE_STRING:
 		return ParamType::String;
 	default:
-		utility::unreachable();
+		assert(false);  // All enum value should be handled
+		// Non void return for optimized build
+		throw Exception(fmt::format("Could not find type for parameter '{}'", name));
 	}
 }
 
@@ -222,7 +215,7 @@ nonstd::span<SCIP_VAR*> Model::pseudo_branch_cands() const {
 nonstd::span<SCIP_COL*> Model::lp_columns() const {
 	auto* const scip_ptr = const_cast<SCIP*>(get_scip_ptr());
 	if (SCIPgetStage(scip_ptr) != SCIP_STAGE_SOLVING) {
-		throw ScipError::from_retcode(SCIP_INVALIDCALL);
+		throw Exception("LP columns are only available during solving");
 	}
 	return {SCIPgetLPCols(scip_ptr), static_cast<std::size_t>(SCIPgetNLPCols(scip_ptr))};
 }
@@ -235,7 +228,7 @@ nonstd::span<SCIP_CONS*> Model::constraints() const noexcept {
 nonstd::span<SCIP_ROW*> Model::lp_rows() const {
 	auto* const scip_ptr = const_cast<SCIP*>(get_scip_ptr());
 	if (SCIPgetStage(scip_ptr) != SCIP_STAGE_SOLVING) {
-		throw ScipError::from_retcode(SCIP_INVALIDCALL);
+		throw Exception("LP rows are only available during solving");
 	}
 	return {SCIPgetLPRows(scip_ptr), static_cast<std::size_t>(SCIPgetNLPRows(scip_ptr))};
 }
@@ -294,17 +287,50 @@ SCIP_Real Model::dual_bound() const noexcept {
 	}
 }
 
-auto Model::solve_iter(nonstd::span<callback::DynamicConstructor const> arg_packs)
-	-> std::optional<callback::DynamicCall> {
-	return scimpl->solve_iter(arg_packs);
+void Model::solve_iter_start_branch() {
+	scimpl->solve_iter_start_branch();
 }
 
-auto Model::solve_iter(callback::DynamicConstructor arg_pack) -> std::optional<callback::DynamicCall> {
-	return solve_iter({&arg_pack, 1});
+void Model::solve_iter_branch(SCIP_RESULT result) {
+	scimpl->solve_iter_branch(result);
 }
 
-auto Model::solve_iter_continue(SCIP_RESULT result) -> std::optional<callback::DynamicCall> {
-	return scimpl->solve_iter_continue(result);
+SCIP_HEUR* Model::solve_iter_start_primalsearch(int trials_per_node, int depth_freq, int depth_start, int depth_stop) {
+	return scimpl->solve_iter_start_primalsearch(trials_per_node, depth_freq, depth_start, depth_stop);
 }
+
+void Model::solve_iter_primalsearch(SCIP_RESULT result) {
+	scimpl->solve_iter_primalsearch(result);
+}
+
+void Model::solve_iter_stop() {
+	scimpl->solve_iter_stop();
+}
+
+bool Model::solve_iter_is_done() {
+	return scimpl->solve_iter_is_done();
+}
+
+namespace internal {
+
+template <> std::string Caster<std::string, char>::cast(char val) {
+	return std::string{val};
+}
+
+template <> char Caster<char, char const*>::cast(char const* val) {
+	if (strlen(val) == 1) {
+		return val[0];
+	}
+	throw scip::Exception("Can only convert a string with a single character to a char");
+}
+
+template <> char Caster<char, std::string>::cast(std::string val) {
+	if (val.length() == 1) {
+		return val[0];
+	}
+	throw scip::Exception("Can only convert a string with a single character to a char");
+}
+
+}  // namespace internal
 
 }  // namespace ecole::scip

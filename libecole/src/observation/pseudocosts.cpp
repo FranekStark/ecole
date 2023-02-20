@@ -16,7 +16,7 @@ namespace views = ranges::views;
 
 namespace {
 
-/** Get LP branching candidates variables and LP solution values. */
+/** get vanilla full strong branching scores and variables */
 auto scip_get_lp_branch_cands(SCIP* const scip) noexcept {
 	SCIP_VAR** cands = nullptr;
 	SCIP_Real* cands_lp_values = nullptr;
@@ -39,13 +39,13 @@ std::optional<xt::xtensor<double, 1>> Pseudocosts::extract(scip::Model& model, b
 	auto const [cands, lp_values] = scip_get_lp_branch_cands(scip);
 
 	/* Store pseudocosts in tensor */
-	auto const nb_vars = static_cast<std::size_t>(SCIPgetNVars(scip));
-	xt::xtensor<double, 1> pseudocosts({nb_vars}, std::nan(""));
+	auto const nb_lp_columns = static_cast<std::size_t>(SCIPgetNLPCols(scip));
+	xt::xtensor<double, 1> pseudocosts({nb_lp_columns}, std::nan(""));
 
 	for (auto const [var, lp_val] : views::zip(cands, lp_values)) {
-		auto const var_index = static_cast<std::size_t>(SCIPvarGetProbindex(var));
+		auto const lp_index = static_cast<std::size_t>(SCIPcolGetLPPos(SCIPvarGetCol(var)));
 		auto const score = SCIPgetVarPseudocostScore(scip, var, lp_val);
-		pseudocosts[var_index] = static_cast<double>(score);
+		pseudocosts[lp_index] = static_cast<double>(score);
 	}
 
 	return pseudocosts;

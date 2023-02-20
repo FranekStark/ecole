@@ -6,12 +6,13 @@
 #include <type_traits>
 
 #include "ecole/data/parser.hpp"
+#include "ecole/dynamics/dynamics.hpp"
 #include "ecole/exception.hpp"
 #include "ecole/information/abstract.hpp"
 #include "ecole/random.hpp"
 #include "ecole/reward/abstract.hpp"
 #include "ecole/scip/model.hpp"
-#include "ecole/scip/seed.hpp"
+#include "ecole/scip/type.hpp"
 #include "ecole/traits.hpp"
 
 #include <optional>
@@ -28,7 +29,7 @@ namespace ecole::environment {
  * Environments are the main abstraction exposed by Ecole.
  * They characterise the Markov Decision Process task to solve.
  * The interface to environments is meant to be close to that of
- * [OpenAi Gym](https://www.gymlibrary.dev/), with some differences nontheless due to the
+ * [OpenAi Gym](https://gym.openai.com/), with some differences nontheless due to the
  * requirements of Ecole.
  *
  * @tparam Dynamics The ecole::environment::EnvironmentDynamics driving the initial state and transition of the
@@ -53,7 +54,7 @@ public:
 	/**
 	 * Default construct everything and seed environment with random value.
 	 */
-	Environment() : the_rng(spawn_random_generator()) {}
+	Environment() : the_random_engine(spawn_random_engine()) {}
 
 	/**
 	 * Fully customize environment and seed environment with random value.
@@ -70,7 +71,7 @@ public:
 		the_observation_function(data::parse(std::move(observation_function))),
 		the_information_function(data::parse(std::move(information_function))),
 		the_scip_params(std::move(scip_params)),
-		the_rng(spawn_random_generator()) {}
+		the_random_engine(spawn_random_engine()) {}
 
 	/**
 	 * Set the random seed for the environment, hence making its internals deterministic.
@@ -83,7 +84,7 @@ public:
 	 * sequence of action taken are also unchanged), one has to seed the environment before
 	 * every call to reset.
 	 */
-	void seed(Seed new_seed) { rng().seed(new_seed); }
+	void seed(Seed new_seed) { random_engine().seed(new_seed); }
 
 	/**
 	 * Reset the environment to the initial state on the given problem instance.
@@ -108,7 +109,7 @@ public:
 			// Create clean new Model
 			model() = std::move(new_model);
 			model().set_params(scip_params());
-			dynamics().set_dynamics_random_state(model(), rng());
+			dynamics().set_dynamics_random_state(model(), random_engine());
 
 			// Reset data extraction function and bring model to initial state.
 			reward_function().before_reset(model());
@@ -167,7 +168,7 @@ public:
 	auto step(Action const& action, Args&&... args)
 		-> std::tuple<OptionalObservation, ActionSet, Reward, bool, InformationMap> {
 		if (!can_transition) {
-			throw MarkovError{"Environment need to be reset."};
+			throw Exception("Environment need to be reset.");
 		}
 		try {
 			// Transition the environment to the next state
@@ -196,7 +197,7 @@ public:
 	auto& reward_function() { return the_reward_function; }
 	auto& information_function() { return the_information_function; }
 	auto& scip_params() { return the_scip_params; }
-	auto& rng() { return the_rng; }
+	auto& random_engine() { return the_random_engine; }
 
 private:
 	Dynamics the_dynamics;
@@ -205,7 +206,7 @@ private:
 	ObservationFunction the_observation_function;
 	InformationFunction the_information_function;
 	std::map<std::string, scip::Param> the_scip_params;
-	RandomGenerator the_rng;
+	RandomEngine the_random_engine;
 	bool can_transition = false;
 
 	// extract reward, observation and information (in that order)

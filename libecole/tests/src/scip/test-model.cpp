@@ -1,4 +1,3 @@
-#include <array>
 #include <future>
 #include <limits>
 #include <random>
@@ -8,7 +7,6 @@
 #include <scip/scip.h>
 
 #include "ecole/random.hpp"
-#include "ecole/scip/callback.hpp"
 #include "ecole/scip/exception.hpp"
 #include "ecole/scip/model.hpp"
 #include "ecole/scip/utils.hpp"
@@ -33,7 +31,7 @@ TEST_CASE("Create model from file", "[scip]") {
 }
 
 TEST_CASE("Raise if file does not exist", "[scip]") {
-	REQUIRE_THROWS_AS(scip::Model::from_file("/does_not_exist.mps"), scip::ScipError);
+	REQUIRE_THROWS_AS(scip::Model::from_file("/does_not_exist.mps"), scip::Exception);
 }
 
 TEST_CASE("Model transform", "[scip][slow]") {
@@ -80,27 +78,27 @@ TEST_CASE("Explicit parameter management", "[scip]") {
 	}
 
 	SECTION("Throw on wrong parameters type") {
-		REQUIRE_THROWS_AS(model.get_param<ParamType::Real>(int_param), scip::ScipError);
+		REQUIRE_THROWS_AS(model.get_param<ParamType::Real>(int_param), scip::Exception);
 		REQUIRE_THROWS_WITH(
 			model.get_param<ParamType::Real>(int_param), Contains(int_param) && Contains("int") && Contains("Real"));
 
 		constexpr auto some_real_val = 3.0;
-		REQUIRE_THROWS_AS(model.set_param<ParamType::Real>(int_param, some_real_val), scip::ScipError);
+		REQUIRE_THROWS_AS(model.set_param<ParamType::Real>(int_param, some_real_val), scip::Exception);
 		REQUIRE_THROWS_WITH(
 			model.set_param<ParamType::Real>(int_param, some_real_val),
 			Contains(int_param) && Contains("int") && Contains("Real"));
 	}
 
 	SECTION("Throw on wrong parameter value") {
-		REQUIRE_THROWS_AS(model.set_param<ParamType::Int>(int_param, -3), scip::ScipError);
+		REQUIRE_THROWS_AS(model.set_param<ParamType::Int>(int_param, -3), scip::Exception);
 		REQUIRE_THROWS_WITH(model.set_param<ParamType::Int>(int_param, -3), Contains(int_param) && Contains("-3"));
 	}
 
 	SECTION("Throw on unknown parameters") {
 		auto constexpr not_a_param = "not a parameter";
-		REQUIRE_THROWS_AS(model.get_param<ParamType::Int>(not_a_param), scip::ScipError);
+		REQUIRE_THROWS_AS(model.get_param<ParamType::Int>(not_a_param), scip::Exception);
 		REQUIRE_THROWS_WITH(model.get_param<ParamType::Int>(not_a_param), Contains(not_a_param));
-		REQUIRE_THROWS_AS(model.set_param<ParamType::Int>(not_a_param, 3), scip::ScipError);
+		REQUIRE_THROWS_AS(model.set_param<ParamType::Int>(not_a_param, 3), scip::Exception);
 		REQUIRE_THROWS_WITH(model.set_param<ParamType::Int>(not_a_param, 3), Contains(not_a_param));
 	}
 }
@@ -119,13 +117,8 @@ TEST_CASE("Automatic parameter management", "[scip]") {
 		REQUIRE(model.get_param<int>(int_param) == 1);
 	}
 
-	SECTION("Const char* parameters can be converted to chars") {
-		model.set_param("branching/scorefunc", "s");
-		REQUIRE(model.get_param<char>("branching/scorefunc") == 's');
-	}
-
 	SECTION("String parameters can be converted to chars") {
-		model.set_param("branching/scorefunc", std::string{"s"});
+		model.set_param("branching/scorefunc", "s");
 		REQUIRE(model.get_param<char>("branching/scorefunc") == 's');
 	}
 
@@ -177,54 +170,22 @@ TEST_CASE("Map parameter management", "[scip]") {
 
 TEST_CASE("Iterative branching", "[scip][slow]") {
 	auto model = get_model();
-	auto fcall = model.solve_iter(scip::callback::BranchruleConstructor{});
-
-	SECTION("Destructed before done") {}
+	model.solve_iter_start_branch();
 
 	SECTION("Branch outside of callback") {
-		while (fcall.has_value()) {
+		while (!model.solve_iter_is_done()) {
 			auto const cands = model.lp_branch_cands();
 			REQUIRE_FALSE(cands.empty());
 			scip::call(SCIPbranchVar, model.get_scip_ptr(), cands[0], nullptr, nullptr, nullptr);
-			fcall = model.solve_iter_continue(SCIP_BRANCHED);
+			model.solve_iter_branch(SCIP_BRANCHED);
 		}
-		REQUIRE(model.is_solved());
 	}
 
 	SECTION("Branch on SCIP default") {
-		while (fcall.has_value()) {
-			fcall = model.solve_iter_continue(SCIP_DIDNOTRUN);
+		while (!model.solve_iter_is_done()) {
+			model.solve_iter_branch(SCIP_DIDNOTRUN);
 		}
-		REQUIRE(model.is_solved());
 	}
-}
 
-TEST_CASE("Iterative solving", "[scip][slow]") {
-	auto model = get_model();
-	auto const constructors = std::array<scip::callback::DynamicConstructor, 2>{
-		scip::callback::BranchruleConstructor{},
-		scip::callback::HeuristicConstructor{},
-	};
-	auto maybe_fcall = model.solve_iter(constructors);
-
-	SECTION("Destructed before done") {}
-
-	SECTION("Using SCIP default") {
-		auto used_branchrule = false;
-		auto used_heuristic = false;
-		while (maybe_fcall.has_value()) {
-			std::visit(
-				[&](auto fcall) {
-					if constexpr (std::is_same_v<decltype(fcall), scip::callback::BranchruleCall>) {
-						used_branchrule = true;
-					} else if constexpr (std::is_same_v<decltype(fcall), scip::callback::HeuristicCall>) {
-						used_heuristic = true;
-					}
-				},
-				maybe_fcall.value());
-			maybe_fcall = model.solve_iter_continue(SCIP_DIDNOTRUN);
-		}
-		REQUIRE(used_branchrule);
-		REQUIRE(used_heuristic);
-	}
+	REQUIRE(model.is_solved());
 }

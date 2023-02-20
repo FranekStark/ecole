@@ -3,15 +3,14 @@
 namespace ecole::data {
 
 /** Dummy data function to monitor what is happening. */
-template <typename T> struct MockFunction {
+template <typename T> struct MockFunction : DataFunction<T> {
 	T val;
 
 	MockFunction() = default;
 	MockFunction(T val_) : val{val_} {}
 
-	auto before_reset(scip::Model const& /* model */) -> void { ++val; };
-
-	[[nodiscard]] auto extract(scip::Model const& /* model */, bool /* done */) const -> T { return val; }
+	void before_reset(scip::Model& /* model */) override { ++val; };
+	T extract(scip::Model& /* model */, bool /* done */) override { return val; }
 };
 
 using IntDataFunc = MockFunction<int>;

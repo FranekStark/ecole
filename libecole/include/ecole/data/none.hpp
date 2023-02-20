@@ -5,11 +5,9 @@
 
 namespace ecole::data {
 
-class NoneFunction {
+class NoneFunction : public DataFunction<NoneType> {
 public:
-	auto before_reset(scip::Model const& /*model*/) -> void {}
-
-	auto extract(scip::Model const& /*model*/, bool /*done*/) -> NoneType { return ecole::None; }
+	NoneType extract(scip::Model& /* model */, bool /* done */) override { return ecole::None; }
 };
 
 }  // namespace ecole::data

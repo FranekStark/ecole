@@ -1,28 +1,25 @@
 #pragma once
 
-#include <stdexcept>
+#include <exception>
 #include <string>
-
-#include "ecole/export.hpp"
 
 namespace ecole {
 
-/*
- * Exception class indicating that the environment interface is not use in the intended way.
- */
-class ECOLE_EXPORT MarkovError : public std::logic_error {
+class Exception : public std::exception {
 public:
-	using std::logic_error::logic_error;
+	Exception(std::string message) noexcept;
+
+	[[nodiscard]] char const* what() const noexcept override;
+
+private:
+	std::string message;
 };
 
-/*
- * Exception class indicating that an generator cannot generate any new items.
- */
-class ECOLE_EXPORT IteratorExhausted : public std::logic_error {
+class IteratorExhausted : public Exception {
 public:
-	using std::logic_error::logic_error;
+	using Exception::Exception;
 
-	ECOLE_EXPORT IteratorExhausted();
+	IteratorExhausted() : Exception{"No item to iterate over."} {}
 };
 
 }  // namespace ecole

@@ -5,27 +5,21 @@
 
 #include <xtensor/xtensor.hpp>
 
-#include "ecole/default.hpp"
-#include "ecole/dynamics/parts.hpp"
-#include "ecole/export.hpp"
+#include "ecole/dynamics/dynamics.hpp"
 
 namespace ecole::dynamics {
 
-class ECOLE_EXPORT BranchingDynamics : public DefaultSetDynamicsRandomState {
+class BranchingDynamics : public EnvironmentDynamics<std::size_t, std::optional<xt::xtensor<std::size_t, 1>>> {
 public:
-	using Action = Defaultable<std::size_t>;
 	using ActionSet = std::optional<xt::xtensor<std::size_t, 1>>;
 
-	using DefaultSetDynamicsRandomState::set_dynamics_random_state;
-
-	ECOLE_EXPORT BranchingDynamics(bool pseudo_candidates = false) noexcept;
-
-	ECOLE_EXPORT auto reset_dynamics(scip::Model& model) const -> std::tuple<bool, ActionSet>;
-
-	ECOLE_EXPORT auto step_dynamics(scip::Model& model, Action maybe_var_idx) const -> std::tuple<bool, ActionSet>;
-
-private:
 	bool pseudo_candidates;
+
+	BranchingDynamics(bool pseudo_candidates = false) noexcept;
+
+	std::tuple<bool, ActionSet> reset_dynamics(scip::Model& model) override;
+
+	std::tuple<bool, ActionSet> step_dynamics(scip::Model& model, std::size_t const& var_idx) override;
 };
 
 }  // namespace ecole::dynamics

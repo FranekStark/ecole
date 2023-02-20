@@ -1,9 +1,3 @@
-⚠️ **Warning** ⚠️
-
-*Ecole is looking for a new home.*
-*It is not being actively developed, only critical issues will be investigated.*
-
-
 .. image:: https://raw.githubusercontent.com/ds4dm/ecole/master/docs/_static/images/ecole-logo.svg
    :target: https://www.ecole.ai
    :alt: Ecole logo
@@ -27,7 +21,7 @@ in cooperation with a state-of-the-art Mixed Integer Linear Programming solver
 that acts as a controllable algorithm.
 
 The underlying solver used is `SCIP <https://scip.zib.de/>`_, and the user facing API is
-meant to mimic the `OpenAI Gym <https://www.gymlibrary.dev/>`_ API (as much as possible).
+meant to mimic the `OpenAi Gym <https://gym.openai.com/>`_ API (as much as possible).
 
 .. code-block:: python
 
@@ -92,7 +86,7 @@ Building from source requires:
 
 Other Options
 ^^^^^^^^^^^^^
-Checkout the `installation instructions <https://doc.ecole.ai/py/en/stable/>`_ in the
+Checkout the `installation instructions <https://doc.ecole.ai/master/installation.html>`_ in the
 documentation for more installation options.
 
 Related Projects

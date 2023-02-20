@@ -3,6 +3,6 @@ Utilities
 
 Random
 ------
-.. autoclass:: ecole.RandomGenerator
+.. autoclass:: ecole.RandomEngine
 .. autofunction:: ecole.seed
-.. autofunction:: ecole.spawn_random_generator
+.. autofunction:: ecole.spawn_random_engine

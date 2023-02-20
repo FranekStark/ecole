@@ -7,19 +7,19 @@
 namespace ecole {
 namespace {
 
-class RandomGeneratorManager {
+class RandomEngineManager {
 public:
-	static auto get() -> RandomGeneratorManager&;
+	static auto get() -> RandomEngineManager&;
 
 	auto seed(Seed val) -> void;
-	auto spawn() -> RandomGenerator;
+	auto spawn() -> RandomEngine;
 
 private:
 	std::mutex m;
 	Seed user_seed = 0;
 	Seed spawn_seed = 0;
 
-	RandomGeneratorManager();
+	RandomEngineManager();
 
 	auto new_seed_seq() -> std::seed_seq;
 };
@@ -27,55 +27,55 @@ private:
 }  // namespace
 
 auto seed(Seed val) -> void {
-	RandomGeneratorManager::get().seed(val);
+	RandomEngineManager::get().seed(val);
 }
 
-auto spawn_random_generator() -> RandomGenerator {
-	return RandomGeneratorManager::get().spawn();
+auto spawn_random_engine() -> RandomEngine {
+	return RandomEngineManager::get().spawn();
 }
 
 // Not efficient, but operator<< is the only thing we have
-auto serialize(RandomGenerator const& rng) -> std::string {
+auto serialize(RandomEngine const& engine) -> std::string {
 	auto osstream = std::ostringstream{};
 	osstream.imbue(std::locale("C"));
-	osstream << rng;
+	osstream << engine;
 	return std::move(osstream).str();
 }
 
 // Not efficient, but operator>> is the only thing we have
-auto deserialize(std::string const& data) -> RandomGenerator {
-	auto rng = RandomGenerator{};  // NOLINT need not be seeded since we set its state
+auto deserialize(std::string const& data) -> RandomEngine {
+	auto engine = RandomEngine{};  // NOLINT need not be seeded since we set its state
 	auto isstream = std::istringstream{data};
 	isstream.imbue(std::locale("C"));
-	std::move(isstream) >> rng;
-	return rng;
+	std::move(isstream) >> engine;
+	return engine;
 }
 
 /*******************************************
- *  Implementation of RandomGeneratorManager  *
+ *  Implementation of RandomEngineManager  *
  *******************************************/
 
 namespace {
 
-auto RandomGeneratorManager::get() -> RandomGeneratorManager& {
-	static auto rng = RandomGeneratorManager{};
-	return rng;
+auto RandomEngineManager::get() -> RandomEngineManager& {
+	static auto random_engine = RandomEngineManager{};
+	return random_engine;
 }
 
-auto RandomGeneratorManager::seed(Seed val) -> void {
+auto RandomEngineManager::seed(Seed val) -> void {
 	auto const lk = std::unique_lock{m};
 	user_seed = val;
 	spawn_seed = 0;
 }
 
-auto RandomGeneratorManager::spawn() -> RandomGenerator {
+auto RandomEngineManager::spawn() -> RandomEngine {
 	auto seeds = new_seed_seq();
-	return RandomGenerator{seeds};
+	return RandomEngine{seeds};
 }
 
-RandomGeneratorManager::RandomGeneratorManager() : user_seed{std::random_device{}()} {}
+RandomEngineManager::RandomEngineManager() : user_seed{std::random_device{}()} {}
 
-auto RandomGeneratorManager::new_seed_seq() -> std::seed_seq {
+auto RandomEngineManager::new_seed_seq() -> std::seed_seq {
 	auto const lk = std::unique_lock{m};
 	return {user_seed, ++spawn_seed};
 }

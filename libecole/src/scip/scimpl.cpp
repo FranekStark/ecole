@@ -1,185 +1,69 @@
 #include <algorithm>
 #include <cassert>
 #include <mutex>
-#include <scip/type_result.h>
-#include <scip/type_retcode.h>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include <objscip/objbranchrule.h>
 #include <objscip/objheur.h>
 #include <scip/scip.h>
 #include <scip/scipdefplugins.h>
-#include <scip/type_timing.h>
 
-#include "ecole/scip/callback.hpp"
 #include "ecole/scip/scimpl.hpp"
 #include "ecole/scip/utils.hpp"
-#include "ecole/utility/coroutine.hpp"
 
 namespace ecole::scip {
 
-/*************************************
- *  Definition of reverse Callbacks  *
- *************************************/
+/******************************************
+ *  Declaration of the ReverseBranchrule  *
+ ******************************************/
 
 namespace {
 
-using Controller = utility::Coroutine<callback::DynamicCall, SCIP_RESULT>;
-using Executor = typename Controller::Executor;
-
-/**
- * Function to add a callback to SCIP.
- *
- * Needs to be implemented by all reverse callbacks.
- */
-template <callback::Type type>
-auto include_reverse_callback(SCIP* scip, std::weak_ptr<Executor> executor, callback::Constructor<type> args) -> void;
-
-/**
- * In a callback send Callback type and wait for result.
- *
- * This function is commonly used inside reverse callbacks to wait for user action (the result).
- * For user to make the proper action, they need to know on which callback SCIP stoped (the stop location).
- * This function will pass the current call function arguments to the coroutine and wait for the result.
- */
-template <callback::Type type>
-auto handle_executor(SCIP* scip, std::weak_ptr<Executor>& weak_executor, callback::Call<type> call) noexcept
-	-> std::tuple<SCIP_RETCODE, SCIP_RESULT> {
-	if (weak_executor.expired()) {
-		return {SCIP_OKAY, SCIP_DIDNOTRUN};
-	}
-	try {
-		return std::visit(
-			[&](auto result_or_stop) -> std::tuple<SCIP_RETCODE, SCIP_RESULT> {
-				using StopToken = Executor::StopToken;
-				if constexpr (std::is_same_v<decltype(result_or_stop), StopToken>) {
-					return {SCIPinterruptSolve(scip), SCIP_DIDNOTRUN};
-				} else {
-					return {SCIP_OKAY, result_or_stop};
-				}
-			},
-			weak_executor.lock()->yield(call));
-	} catch (...) {
-		return {SCIP_ERROR, SCIP_DIDNOTRUN};
-	}
-}
-
 class ReverseBranchrule : public ::scip::ObjBranchrule {
 public:
-	ReverseBranchrule(
-		SCIP* scip,
-		int priority,
-		int maxdepth,
-		SCIP_Real maxbounddist,
-		std::weak_ptr<Executor> weak_executor) :
-		ObjBranchrule{
-			scip,
-			name(callback::Type::Branchrule),
-			"Branchrule that wait for another thread to make the branching.",
-			priority,
-			maxdepth,
-			maxbounddist},
-		m_weak_executor{std::move(weak_executor)} {}
+	static constexpr int max_priority = 536870911;
+	static constexpr int no_maxdepth = -1;
+	static constexpr double no_maxbounddist = 1.0;
+	static constexpr auto name = "ecole::ReverseBranchrule";
 
-	auto scip_execlp(SCIP* scip, SCIP_BRANCHRULE* /*branchrule*/, SCIP_Bool allow_add_constraints, SCIP_RESULT* result)
-		-> SCIP_RETCODE override {
-		using Where = callback::BranchruleCall::Where;
-		return scip_exec_any(scip, result, {static_cast<bool>(allow_add_constraints), Where::LP});
-	}
+	ReverseBranchrule(SCIP* scip, std::weak_ptr<utility::Controller::Executor> /*weak_executor_*/);
 
-	auto scip_execext(SCIP* scip, SCIP_BRANCHRULE* /*branchrule*/, SCIP_Bool allow_add_constraints, SCIP_RESULT* result)
-		-> SCIP_RETCODE override {
-		using Where = callback::BranchruleCall::Where;
-		return scip_exec_any(scip, result, {static_cast<bool>(allow_add_constraints), Where::External});
-	}
-
-	auto scip_execps(SCIP* scip, SCIP_BRANCHRULE* /*branchrule*/, SCIP_Bool allow_add_constraints, SCIP_RESULT* result)
-		-> SCIP_RETCODE override {
-		using Where = callback::BranchruleCall::Where;
-		return scip_exec_any(scip, result, {static_cast<bool>(allow_add_constraints), Where::Pseudo});
-	}
+	auto scip_execlp(SCIP* scip, SCIP_BRANCHRULE* branchrule, SCIP_Bool allowaddcons, SCIP_RESULT* result)
+		-> SCIP_RETCODE override;
 
 private:
-	std::weak_ptr<Executor> m_weak_executor;
-
-	auto scip_exec_any(SCIP* scip, SCIP_RESULT* result, callback::BranchruleCall call) -> SCIP_RETCODE {
-		auto retcode = SCIP_OKAY;
-		std::tie(retcode, *result) = handle_executor(scip, m_weak_executor, call);
-		return retcode;
-	}
+	std::weak_ptr<utility::Controller::Executor> weak_executor;
 };
 
-template <>
-auto include_reverse_callback<callback::Type::Branchrule>(
-	SCIP* scip,
-	std::weak_ptr<Executor> executor,
-	callback::Constructor<callback::Type::Branchrule> args) -> void {
-	scip::call(
-		SCIPincludeObjBranchrule,
-		scip,
-		new ReverseBranchrule(scip, args.priority, args.max_depth, args.max_bound_distance, std::move(executor)),
-		true);
-}  // NOLINT
+}  // namespace
+
+/************************************
+ *  Declaration of the ReverseHeur  *
+ ************************************/
+
+namespace {
 
 class ReverseHeur : public ::scip::ObjHeur {
 public:
+	static constexpr int max_priority = 536870911;
+	static constexpr auto name = "ecole::ReverseHeur";
+
 	ReverseHeur(
 		SCIP* scip,
-		int priority,
-		int freq,
-		int freqofs,
-		int maxdepth,
-		SCIP_HEURTIMING timingmask,
-		std::weak_ptr<Executor> weak_executor) :
-		ObjHeur{
-			scip,
-			name(callback::Type::Heuristic),
-			"Primal heuristic that waits for another thread to provide a primal solution.",
-			'e',
-			priority,
-			freq,
-			freqofs,
-			maxdepth,
-			timingmask,
-			false},
-		m_weak_executor{std::move(weak_executor)} {}
+		std::weak_ptr<utility::Controller::Executor> /*weak_executor*/,
+		int trials_per_node,
+		int depth_freq,
+		int depth_start,
+		int depth_stop);
 
-	auto scip_exec(
-		SCIP* scip,
-		SCIP_HEUR* /*heur*/,
-		SCIP_HEURTIMING heuristic_timing,
-		SCIP_Bool node_infeasible,
-		SCIP_RESULT* result) -> SCIP_RETCODE override {
-		auto retcode = SCIP_OKAY;
-		std::tie(retcode, *result) = handle_executor(
-			scip, m_weak_executor, callback::HeuristicCall{heuristic_timing, static_cast<bool>(node_infeasible)});
-		return retcode;
-	}
+	auto scip_exec(SCIP* scip, SCIP_HEUR* heur, SCIP_HEURTIMING heurtiming, SCIP_Bool nodeinfeasible, SCIP_RESULT* result)
+		-> SCIP_RETCODE override;
 
 private:
-	std::weak_ptr<Executor> m_weak_executor;
-};
+	std::weak_ptr<utility::Controller::Executor> weak_executor;
 
-template <>
-auto include_reverse_callback<callback::Type::Heuristic>(
-	SCIP* scip,
-	std::weak_ptr<Executor> executor,
-	callback::Constructor<callback::Type::Heuristic> args) -> void {
-	scip::call(
-		SCIPincludeObjHeur,
-		scip,
-		new ReverseHeur(
-			scip,
-			args.priority,
-			args.frequency,
-			args.frequency_offset,
-			args.max_depth,
-			args.timing_mask,
-			std::move(executor)),
-		true);
-}  // NOLINT
+	int trials_per_node;
+};
 
 }  // namespace
 
@@ -196,6 +80,7 @@ namespace {
 std::unique_ptr<SCIP, ScipDeleter> create_scip() {
 	SCIP* scip_raw;
 	scip::call(SCIPcreate, &scip_raw);
+	SCIPmessagehdlrSetQuiet(SCIPgetMessagehdlr(scip_raw), 1U);
 	std::unique_ptr<SCIP, ScipDeleter> scip_ptr = nullptr;
 	scip_ptr.reset(scip_raw);
 	return scip_ptr;
@@ -203,19 +88,17 @@ std::unique_ptr<SCIP, ScipDeleter> create_scip() {
 
 }  // namespace
 
-Scimpl::Scimpl() : m_scip{create_scip()} {}
-
-Scimpl::Scimpl(Scimpl&&) noexcept = default;
+scip::Scimpl::Scimpl() : m_scip(create_scip()) {
+	scip::call(SCIPincludeDefaultPlugins, get_scip_ptr());
+}
 
 Scimpl::Scimpl(std::unique_ptr<SCIP, ScipDeleter>&& scip_ptr) noexcept : m_scip(std::move(scip_ptr)) {}
 
-Scimpl::~Scimpl() = default;
-
-auto Scimpl::get_scip_ptr() noexcept -> SCIP* {
+SCIP* scip::Scimpl::get_scip_ptr() noexcept {
 	return m_scip.get();
 }
 
-auto Scimpl::copy() const -> Scimpl {
+scip::Scimpl scip::Scimpl::copy() const {
 	if (m_scip == nullptr) {
 		return {nullptr};
 	}
@@ -230,7 +113,7 @@ auto Scimpl::copy() const -> Scimpl {
 	return {std::move(dest)};
 }
 
-auto Scimpl::copy_orig() const -> Scimpl {
+scip::Scimpl scip::Scimpl::copy_orig() const {
 	if (m_scip == nullptr) {
 		return {nullptr};
 	}
@@ -245,21 +128,134 @@ auto Scimpl::copy_orig() const -> Scimpl {
 	return {std::move(dest)};
 }
 
-auto Scimpl::solve_iter(nonstd::span<callback::DynamicConstructor const> arg_packs)
-	-> std::optional<callback::DynamicCall> {
+void Scimpl::solve_iter_start_branch() {
 	auto* const scip_ptr = get_scip_ptr();
-	m_controller = std::make_unique<Controller>([=](std::weak_ptr<Executor> const& executor) {
-		for (auto const pack : arg_packs) {
-			std::visit([&](auto args) { include_reverse_callback(scip_ptr, executor, args); }, pack);
-		}
-		scip::call(SCIPsolve, scip_ptr);
+	m_controller =
+		std::make_unique<utility::Controller>([scip_ptr](std::weak_ptr<utility::Controller::Executor> weak_executor) {
+			scip::call(
+				SCIPincludeObjBranchrule,
+				scip_ptr,
+				new ReverseBranchrule(scip_ptr, std::move(weak_executor)),  // NOLINT
+				true);
+			scip::call(SCIPsolve, scip_ptr);  // NOLINT
+		});
+
+	m_controller->wait_thread();
+}
+
+void scip::Scimpl::solve_iter_branch(SCIP_RESULT result) {
+	m_controller->resume_thread([result](SCIP* /* scip */, SCIP_RESULT* final_result) {
+		*final_result = result;
+		return SCIP_OKAY;
 	});
-	return m_controller->wait();
+
+	m_controller->wait_thread();
 }
 
-auto Scimpl::solve_iter_continue(SCIP_RESULT result) -> std::optional<callback::DynamicCall> {
-	m_controller->resume(result);
-	return m_controller->wait();
+SCIP_HEUR* Scimpl::solve_iter_start_primalsearch(int trials_per_node, int depth_freq, int depth_start, int depth_stop) {
+	auto* const scip_ptr = get_scip_ptr();
+	m_controller = std::make_unique<utility::Controller>([=](std::weak_ptr<utility::Controller::Executor> weak_executor) {
+		scip::call(
+			SCIPincludeObjHeur,
+			scip_ptr,
+			new ReverseHeur(
+				scip_ptr, std::move(weak_executor), trials_per_node, depth_freq, depth_start, depth_stop),  // NOLINT
+			true);
+		scip::call(SCIPsolve, scip_ptr);  // NOLINT
+	});
+
+	m_controller->wait_thread();
+	return SCIPfindHeur(scip_ptr, scip::ReverseHeur::name);
 }
 
+void scip::Scimpl::solve_iter_primalsearch(SCIP_RESULT result) {
+	m_controller->resume_thread([result](SCIP* /* scip */, SCIP_RESULT* final_result) {
+		*final_result = result;
+		return SCIP_OKAY;
+	});
+
+	m_controller->wait_thread();
+}
+
+void scip::Scimpl::solve_iter_stop() {
+	m_controller = nullptr;
+}
+
+bool scip::Scimpl::solve_iter_is_done() {
+	return !(m_controller) || m_controller->is_done();
+}
+
+/*************************************
+ *  Definition of ReverseBranchrule  *
+ *************************************/
+
+namespace {
+
+scip::ReverseBranchrule::ReverseBranchrule(SCIP* scip, std::weak_ptr<utility::Controller::Executor> weak_executor_) :
+	::scip::ObjBranchrule(
+		scip,
+		scip::ReverseBranchrule::name,
+		"Branchrule that wait for another thread to make the branching.",
+		scip::ReverseBranchrule::max_priority,
+		scip::ReverseBranchrule::no_maxdepth,
+		scip::ReverseBranchrule::no_maxbounddist),
+	weak_executor(std::move(weak_executor_)) {}
+
+auto ReverseBranchrule::scip_execlp(
+	SCIP* scip,
+	SCIP_BRANCHRULE* /*branchrule*/,
+	SCIP_Bool /*allowaddcons*/,
+	SCIP_RESULT* result) -> SCIP_RETCODE {
+	if (weak_executor.expired()) {
+		*result = SCIP_DIDNOTRUN;
+		return SCIP_OKAY;
+	}
+	auto action_func = weak_executor.lock()->hold_env();
+	return action_func(scip, result);
+}
+
+}  // namespace
+
+/*******************************
+ *  Definition of ReverseHeur  *
+ *******************************/
+
+namespace {
+
+scip::ReverseHeur::ReverseHeur(
+	SCIP* scip,
+	std::weak_ptr<utility::Controller::Executor> weak_executor_,
+	int trials_per_node_,
+	int depth_freq,
+	int depth_start,
+	int depth_stop) :
+	::scip::ObjHeur(
+		scip,
+		scip::ReverseHeur::name,
+		"Primal heuristic that waits for another thread to provide a primal solution.",
+		'e',
+		scip::ReverseHeur::max_priority,
+		depth_freq,
+		depth_start,
+		depth_stop,
+		SCIP_HEURTIMING_AFTERNODE,
+		false),
+	weak_executor(std::move(weak_executor_)),
+	trials_per_node(trials_per_node_) {}
+
+auto ReverseHeur::scip_exec(
+	SCIP* scip,
+	SCIP_HEUR* /*heur*/,
+	SCIP_HEURTIMING /*heurtiming*/,
+	SCIP_Bool /*nodeinfeasible*/,
+	SCIP_RESULT* result) -> SCIP_RETCODE {
+	if (weak_executor.expired() || (trials_per_node == 0)) {
+		*result = SCIP_DIDNOTRUN;
+		return SCIP_OKAY;
+	}
+	auto action_func = weak_executor.lock()->hold_env();  // could we pass heur here ?
+	return action_func(scip, result);
+}
+
+}  // namespace
 }  // namespace ecole::scip

@@ -12,18 +12,17 @@ dependencies:
   - xsimd
   - fmt
   # C++ runtime dependencies
-  - scip=8
+  - scip
   # Build time Python dependencies
   - python>=3.6
-  - pybind11>=2.7
+  - pybind11>=2.6
   - numpy>=1.4
   - xtensor-python
   - scikit-build
-  - build
 
   # Documentation
   - doxygen
-  - sphinx = 4.4
+  - sphinx = 4.0
   - breathe>=4.15
   - sphinx_rtd_theme
 
@@ -32,14 +31,12 @@ dependencies:
   # C++ dev tools
   - clang-tools=11
   - ccache
-  - catch2 < 3.0
+  - catch2
   - cli11
   # Python dev tools
-  - pip
   - pytest
   - pytest-helpers-namespace
   - black
   - ipython
   - pyscipopt >= 3.0.1  # optional
   - twine
-  - papermill

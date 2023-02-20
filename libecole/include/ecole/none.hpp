@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ecole/export.hpp"
-
 namespace ecole {
 
 /**
@@ -11,14 +9,14 @@ namespace ecole {
  * For instance, when not needing an observation function, this is used as the type
  * of the observation.
  */
-struct ECOLE_EXPORT NoneType {
-	constexpr bool operator==(NoneType /*unused*/) const { return true; }
-	constexpr bool operator!=(NoneType /*unused*/) const { return false; }
+struct NoneType {
+	constexpr bool operator==(NoneType const& /*unused*/) const { return true; }
+	constexpr bool operator!=(NoneType const& /*unused*/) const { return false; }
 };
 
 /**
  * A constant expression representing no value.
  */
-constexpr inline NoneType None;
+constexpr NoneType None;
 
 }  // namespace ecole
