@@ -90,7 +90,7 @@ function configure {
 	if [ "${warnings_as_errors}" = "true" ]; then
 		extra_args+=("-Werror=dev" "-D" "WARNINGS_AS_ERRORS=ON")
 	fi
-	execute cmake -S "${source_dir}" -B "${build_dir}" -D ECOLE_BUILD_TESTS=ON -D ECOLE_BUILD_BENCHMARKS=ON ${extra_args[@]+"${extra_args[@]}"}
+	execute cmake -S "${source_dir}" -B "${build_dir}" -D ECOLE_BUILD_TESTS=ON -D ECOLE_BUILD_BENCHMARKS=ON "${extra_args[@]}"
 	execute ln -nfs "${build_dir}/compile_commands.json"
 }
 
@@ -143,7 +143,7 @@ function build_doc {
 	if [ "${warnings_as_errors}" = "true" ]; then
 		local sphinx_args+=("-W")
 	fi
-	execute_pythonpath python -m sphinx ${sphinx_args[@]+"${sphinx_args[@]}"} -b html "${source_doc_dir}" "${build_doc_dir}" "$@"
+	execute_pythonpath python -m sphinx "${sphinx_args[@]}" -b html "${source_doc_dir}" "${build_doc_dir}" "$@"
 }
 
 
@@ -165,7 +165,7 @@ function test_all {
 # Return false (1) when `diff` is set and given files pattern have modifications since `rev`.
 function files_have_changed {
 	if [ "${diff}" = "true" ]; then
-		cd "${__ECOLE_DIR__}" && git diff --name-only --exit-code "${rev}" -- "${@}" > /dev/null && return 1 || return 0
+		git -C "${__ECOLE_DIR__}" diff --name-only --exit-code "${rev}" -- "${@}" > /dev/null && return 1 || return 0
 	fi
 }
 
@@ -177,23 +177,7 @@ function test_lib {
 		if [ "${fail_fast}" = "true" ]; then
 			extra_args+=("--abort")
 		fi
-		execute "${build_dir}/libecole/tests/ecole-lib-test" ${extra_args[@]+"${extra_args[@]}"}
-	else
-		log "Skipping ${FUNCNAME[0]} as unchanged since ${rev}."
-	fi
-}
-
-
-# CTest runner runs test individually, reducing mem consumption
-function ctest_lib {
-	if files_have_changed 'CMakeLists.txt' 'libecole';  then
-		if_rebuild_then build_lib_test
-		local extra_args=("$@")
-		if [ "${fail_fast}" = "true" ]; then
-			extra_args+=("--stop-on-failure ")
-		fi
-		# Possible option --parallel
-		cmake_build test -- ARGS="${extra_args[@]+"${extra_args[@]}"}"
+		execute "${build_dir}/libecole/tests/ecole-lib-test" "${extra_args[@]}"
 	else
 		log "Skipping ${FUNCNAME[0]} as unchanged since ${rev}."
 	fi
@@ -208,7 +192,7 @@ function test_py {
 		if [ "${fail_fast}" = "true" ]; then
 			extra_args+=("--exitfirst")
 		fi
-		execute_pythonpath python -m pytest ${extra_args[@]+"${extra_args[@]}"}
+		execute_pythonpath python -m pytest "${extra_args[@]}"
 	else
 		log "Skipping ${FUNCNAME[0]} as unchanged since ${rev}."
 	fi
@@ -222,8 +206,8 @@ function test_doc {
 		if [ "${warnings_as_errors}" = "true" ]; then
 			extra_args+=("-W")
 		fi
-		execute python -m sphinx ${extra_args[@]+"${extra_args[@]}"} -b linkcheck "${source_doc_dir}" "${build_doc_dir}"
-		execute_pythonpath python -m sphinx ${extra_args[@]+"${extra_args[@]}"} -b doctest "${source_doc_dir}" "${build_doc_dir}"
+		execute python -m sphinx "${extra_args[@]}" -b linkcheck "${source_doc_dir}" "${build_doc_dir}"
+		execute_pythonpath python -m sphinx "${extra_args[@]}" -b doctest "${source_doc_dir}" "${build_doc_dir}"
 	else
 		log "Skipping ${FUNCNAME[0]} as unchanged since ${rev}."
 	fi
@@ -314,8 +298,8 @@ function check_code {
 # FIXME this is not used in Github Action for now
 function deploy_doc_locally {
 	# Try getting from exact tag.
-	local -r tag=$(cd "${source_dir}" && git describe --tags --exact-match HEAD 2> /dev/null)
-	local -r branch="$(cd "${source_dir}" && git rev-parse --abbrev-ref HEAD)"
+	local -r tag=$(git -C ${source_dir} describe --tags --exact-match HEAD 2> /dev/null)
+	local -r branch="$(git rev-parse --abbrev-ref HEAD)"
 
 	local -r install_dir="${1}"
 	if_rebuild_then build_doc

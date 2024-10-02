@@ -357,7 +357,7 @@ auto row_is_active(SCIP* const scip, SCIP_ROW* const row) noexcept -> bool {
 	auto const activity = SCIPgetRowActivity(scip, row);
 	auto const lhs = SCIProwGetLhs(row);
 	auto const rhs = SCIProwGetRhs(row);
-	return SCIProwIsInLP(row) && (SCIPisEQ(scip, activity, rhs) || SCIPisEQ(scip, activity, lhs));
+	return SCIPisEQ(scip, activity, rhs) || SCIPisEQ(scip, activity, lhs);
 }
 
 /**
@@ -437,7 +437,7 @@ void set_stats_for_active_constraint_coefficients(
 	SCIP* const scip,
 	nonstd::span<SCIP_ROW*> const rows,
 	nonstd::span<SCIP_Real> const coefficients,
-	xt::xtensor<value_type, 2> const& lp_rows_weights) noexcept {
+	xt::xtensor<value_type, 2> const& active_rows_weights) noexcept {
 
 	auto weights_stats = std::array<utility::StatsFeatures<value_type>, 4>{};
 	for (auto& stats : weights_stats) {
@@ -452,10 +452,8 @@ void set_stats_for_active_constraint_coefficients(
 		if (row_is_active(scip, row)) {
 			n_active_rows++;
 
-			assert(row_lp_idx >= 0);
-
 			for (std::size_t weight_idx = 0; weight_idx < weights_stats.size(); ++weight_idx) {
-				auto const weight = lp_rows_weights(row_lp_idx, weight_idx);
+				auto const weight = active_rows_weights(row_lp_idx, weight_idx);
 				assert(!std::isnan(weight));  // If NaN likely hit a maked value
 				auto const weighted_abs_coef = weight * std::abs(coef);
 
@@ -477,7 +475,7 @@ void set_stats_for_active_constraint_coefficients(
 			auto const row_lp_idx = SCIProwGetLPPos(row);
 			if (row_is_active(scip, row)) {
 				for (std::size_t weight_idx = 0; weight_idx < weights_stats.size(); ++weight_idx) {
-					auto const weight = lp_rows_weights(row_lp_idx, weight_idx);
+					auto const weight = active_rows_weights(row_lp_idx, weight_idx);
 					assert(!std::isnan(weight));  // If NaN likely hit a maked value
 					auto const weighted_abs_coef = weight * std::abs(coef);
 
@@ -534,7 +532,7 @@ void set_dynamic_features(
 	Tensor&& out,
 	SCIP* const scip,
 	SCIP_VAR* const var,
-	xt::xtensor<value_type, 2> const& lp_rows_weights) {
+	xt::xtensor<value_type, 2> const& active_rows_weights) {
 	auto* const col = SCIPvarGetCol(var);
 	auto const rows = scip::get_rows(col);
 	auto const coefficients = scip::get_vals(col);
@@ -544,7 +542,7 @@ void set_dynamic_features(
 	set_dynamic_stats_for_constraint_degree(out, rows);
 	set_min_max_for_ratios_constraint_coeffs_rhs(out, scip, rows, coefficients);
 	set_min_max_for_one_to_all_coefficient_ratios(out, rows, coefficients);
-	set_stats_for_active_constraint_coefficients(out, scip, rows, coefficients, lp_rows_weights);
+	set_stats_for_active_constraint_coefficients(out, scip, rows, coefficients, active_rows_weights);
 }
 
 /**
@@ -553,29 +551,37 @@ void set_dynamic_features(
  * The static features have been computed for all LP columns and stored in the order of `LPcolumns`.
  * We need to find the one associated with the given variable.
  */
-template <typename TensorOut, typename TensorIn>
-void set_precomputed_static_features(TensorOut&& var_features, TensorIn const& var_static_features) {
+template <typename Tensor>
+void set_precomputed_static_features(
+	Tensor&& out,
+	SCIP_VAR* const var,
+	xt::xtensor<value_type, 2> const& static_features) {
+
+	auto const col_idx = static_cast<std::ptrdiff_t>(SCIPcolGetIndex(SCIPvarGetCol(var)));
 	using namespace xt::placeholders;
-	xt::view(var_features, xt::range(_, Khalil2016Obs::n_static_features)) = var_static_features;
+	xt::view(out, xt::range(_, Khalil2016Obs::n_static_features)) = xt::row(static_features, col_idx);
 }
 
 /******************************
  *  Main extraction function  *
  ******************************/
 
-auto extract_all_features(scip::Model& model, bool pseudo, xt::xtensor<value_type, 2> const& static_features) {
-	auto const branch_cands = pseudo ? model.pseudo_branch_cands() : model.lp_branch_cands();
-	auto observation = xt::xtensor<value_type, 2>{{model.variables().size(), Khalil2016Obs::n_features}, std::nan("")};
+auto extract_all_features(scip::Model& model, xt::xtensor<value_type, 2> const& static_features) {
+	xt::xtensor<value_type, 2> observation{
+		{model.pseudo_branch_cands().size(), Khalil2016Obs::n_features},
+		std::nan(""),
+	};
 
 	auto* const scip = model.get_scip_ptr();
-	auto const lp_rows_weights = stats_for_active_constraint_coefficients_weights(model);
+	auto const active_rows_weights = stats_for_active_constraint_coefficients_weights(model);
 
-	for (auto* var : branch_cands) {
-		auto const var_idx = SCIPvarGetProbindex(var);
-		auto var_features = xt::row(observation, var_idx);
-		auto var_static_features = xt::row(static_features, var_idx);
-		set_precomputed_static_features(var_features, var_static_features);
-		set_dynamic_features(var_features, scip, var, lp_rows_weights);
+	auto const pseudo_branch_cands = model.pseudo_branch_cands();
+	auto const n_pseudo_branch_cands = pseudo_branch_cands.size();
+	for (std::size_t var_idx = 0; var_idx < n_pseudo_branch_cands; ++var_idx) {
+		auto* const var = pseudo_branch_cands[var_idx];
+		auto features = xt::row(observation, static_cast<std::ptrdiff_t>(var_idx));
+		set_precomputed_static_features(features, var, static_features);
+		set_dynamic_features(features, scip, var, active_rows_weights);
 	}
 
 	return observation;
@@ -592,8 +598,6 @@ auto is_on_root_node(scip::Model& model) -> bool {
  *  Observation extracting function  *
  *************************************/
 
-Khalil2016::Khalil2016(bool pseudo_candidates_) noexcept : pseudo_candidates(pseudo_candidates_) {}
-
 void Khalil2016::before_reset(scip::Model& /* model */) {
 	static_features = decltype(static_features){};
 }
@@ -603,7 +607,7 @@ auto Khalil2016::extract(scip::Model& model, bool /* done */) -> std::optional<K
 		if (is_on_root_node(model)) {
 			static_features = extract_static_features(model);
 		}
-		return {{extract_all_features(model, pseudo_candidates, static_features)}};
+		return {{extract_all_features(model, static_features)}};
 	}
 	return {};
 }

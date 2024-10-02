@@ -106,7 +106,7 @@ class Environment:
             else:
                 self.model = ecole.core.scip.Model.from_file(instance)
             self.model.set_params(self.scip_params)
-
+            
             self.dynamics.set_dynamics_random_state(self.model, self.random_engine)
 
             # Reset data extraction functions
