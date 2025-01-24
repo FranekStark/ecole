@@ -28,6 +28,7 @@ add_library(
 	src/reward/solvingtime.cpp
 	src/reward/nnodes.cpp
 	src/reward/boundintegral.cpp
+	src/reward/suboptimality.cpp
 
 	src/observation/nodebipartite.cpp
 	src/observation/milpbipartite.cpp
