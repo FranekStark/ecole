@@ -12,6 +12,7 @@
 #include "ecole/reward/nnodes.hpp"
 #include "ecole/reward/solvingtime.hpp"
 #include "ecole/reward/suboptimality.hpp"
+#include "ecole/reward/primal_gap.hpp"
 #include "ecole/scip/model.hpp"
 
 #include "core.hpp"
@@ -191,6 +192,41 @@ void bind_submodule(py::module_ const& m) {
 	def_extract(suboptimality, R"(
 		Iterates through all solutions and returns the lowest objective which has been found within time_limit.
 		)");
+
+
+	auto confinedprimalgapintegral = py::class_<ConfinedPrimalGapIntegral>(m, "ConfinedPrimalGapIntegral", R"(
+		Suboptimal objective.
+
+		The reward is defined as the best objective function which has been found within a maximum time.
+	)");
+
+	confinedprimalgapintegral.def(
+		py::init<const std::function<double(std::string)> &, double, double, std::string>(),
+		py::arg("primal_bound_lookup_fun"),
+		py::arg("time_limit") = 0.1,
+		py::arg("importance") = 1.0,
+		py::arg("name") = "1",
+		R"pbdoc(
+		Create a Confined primal integral reward function.
+	
+		Parameters
+		----------
+		primal_bound_lookup_fun : Callable[[str], float]
+			Function returning a primal bound given a problem name.
+		time_limit : float, optional
+			Time limit within which to find the suboptimal value.
+		importance : float, optional
+			Importance weight for the reward.
+		name : str, optional
+			Name identifier for the reward function.
+		)pbdoc"
+	);
+	def_operators(confinedprimalgapintegral);
+	def_before_reset(confinedprimalgapintegral, "");
+	def_extract(confinedprimalgapintegral, R"(
+		Returns the current confined primal integral.
+		)");
+
 
 	auto dualintegral = py::class_<DualIntegral>(m, "DualIntegral", R"(
 		Dual integral difference.
