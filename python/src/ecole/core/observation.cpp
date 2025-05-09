@@ -8,6 +8,7 @@
 #include <pybind11/stl.h>
 #include <xtensor-python/pytensor.hpp>
 
+#include "ecole/observation/treerecorder.hpp"
 #include "ecole/observation/hutter-2011.hpp"
 #include "ecole/observation/khalil-2016.hpp"
 #include "ecole/observation/milpbipartite.hpp"
@@ -482,6 +483,48 @@ void bind_submodule(py::module_ const& m) {
 	hutter.def(py::init<>());
 	def_before_reset(hutter, R"(Do nothing.)");
 	def_extract(hutter, "Extract the observation matrix.");
+
+
+	auto treerecorder_obs = auto_class<TreeRecorderObs>(m, "TreeRecorderObs",
+	R"(
+		TODO: describe
+	)"
+	);
+	treerecorder_obs.def("get_sub_tree_confined_primal_gap_integral", 
+		&TreeRecorderObs::GetSubTreeConfinedPrimalGapIntegral,
+		py::arg("primal_obj_bound"), py::arg("time_limit"), py::arg("importance"), py::arg("assume_no_sol_before"));
+	
+	treerecorder_obs.def_property_readonly(
+		"node_id", [](TreeRecorderObs & self) -> auto& { return self.node_id_; }, "Add description.");
+	treerecorder_obs.def_property_readonly(
+			"nodes", [](TreeRecorderObs & self) -> auto& { return self.nodes_; }, "Add description.");
+	
+	auto treerecorder = auto_class<TreeRecorder>(m, "TreeRecorder", R"(
+		TODO: describe
+		)");
+	treerecorder.def(py::init<>());
+	def_before_reset(treerecorder, "Reset");
+	def_extract(treerecorder, "Extract");
+
+	auto treerecorder_node = auto_class<Node>(m, "Node", R"(
+		TODO: describe
+		)")
+	.def_readwrite("node_id", &Node::node_id)
+	.def_readwrite("parent_id", &Node::parent_id)
+	.def_readwrite("children_ids", &Node::children_ids_)
+	.def_readwrite("is_leaf", &Node::isLeaf)
+	.def_readwrite("depth", &Node::depth)
+	.def_readwrite("start_time", &Node::start_time)
+	.def_readwrite("end_time", &Node::end_time)
+	.def_readwrite("primal_obj", &Node::primal_obj)
+	.def_readwrite("sols", &Node::sols);
+
+	auto treerecorder_sol = auto_class<Sol>(m, "Sol", R"(
+		TODO: describe
+		)")
+	.def_readwrite("primal_obj", &Sol::primal_obj_)
+	.def_readwrite("time", &Sol::time_)
+	.def_readwrite("node_id", &Sol::node_id);
 }
 
 }  // namespace ecole::observation

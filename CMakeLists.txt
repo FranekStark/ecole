@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 # Adapt compiler flags if using Conda compiler packages. Before project so they are not modified.
 include(cmake/Conda.cmake)
 

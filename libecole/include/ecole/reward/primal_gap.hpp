@@ -38,6 +38,7 @@ private:
     SCIP_DECL_EVENTEXEC(eventExec);
     static
     SCIP_DECL_EVENTINIT(eventInit);
+    static constexpr bool DEBUG_PRINTS = false;
     
 };
 

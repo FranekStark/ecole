@@ -40,6 +40,7 @@ add_library(
 	src/observation/pseudocosts.cpp
         src/observation/capacity.cpp
         src/observation/weight.cpp
+	src/observation/treerecorder.cpp
 
 	src/dynamics/branching.cpp
 	src/dynamics/branching-sum.cpp
