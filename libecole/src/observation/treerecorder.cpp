@@ -73,7 +73,7 @@ void TreeRecorder::addNode(SCIP* scip, SCIP_NODE* node) {
 	}
 
 	nodes_[id] = Node{ id, parent_id, {}, false, depth, time, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(), {}};
-	std::cout << "Add node node_id: " << id << std::endl;
+	//std::cout << "Add node node_id: " << id << std::endl;
 }
 
 void TreeRecorder::markLeaf(SCIP* scip, SCIP_NODE* node, bool leaf) {
@@ -85,7 +85,7 @@ void TreeRecorder::markLeaf(SCIP* scip, SCIP_NODE* node, bool leaf) {
 	if(best_sol){
 		nodes_[node_id].primal_obj = SCIPgetSolOrigObj(scip, best_sol);
 	}
-	std::cout << "Mark leaf node_id: " << node_id << " - " << leaf << std::endl;
+	//std::cout << "Mark leaf node_id: " << node_id << " - " << leaf << std::endl;
 }
 
 
@@ -94,7 +94,7 @@ void TreeRecorder::addSol(SCIP* scip, SCIP_SOL* sol) {
 	double time = SCIPgetSolTime(scip, sol);
 	long long node_id = SCIPgetSolNodenum(scip, sol);
 	nodes_[node_id].sols.push_back({primal_obj, time, node_id});
-	std::cout << "Sol on node_id: " << node_id << std::endl;
+	//std::cout << "Sol on node_id: " << node_id << std::endl;
 }
 
 
@@ -110,7 +110,7 @@ double TreeRecorderObs::GetSubTreeConfinedPrimalGapIntegral(double primal_obj_bo
 		last_incubent_time = nodes_[node_id_].start_time;
 		last_incubent_obj = nodes_[node_id_].primal_obj;
 	}
-	
+
 	if(assume_no_sol_before){
 		last_incubent_obj = std::numeric_limits<double>::infinity();
 	}
