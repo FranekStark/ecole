@@ -178,7 +178,7 @@ void bind_submodule(py::module_ const& m) {
 
 		The reward is defined as the best objective function which has been found within a maximum time.
 	)");
-	suboptimality.def(py::init<double>(), py::arg("time_limit") = 0.1, R"(
+	suboptimality.def(py::init<double, const std::function<double(std::string)> &>(), py::arg("time_limit") = 0.1, py::arg("primal_bound_lookup_fun"), R"(
 		Create a SubOptimality reward function.
 
 		Parameters

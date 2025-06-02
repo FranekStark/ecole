@@ -1,11 +1,17 @@
 #include "ecole/reward/suboptimality.hpp"
+#include "ecole/reward/primal_gap.hpp"
 
 namespace ecole::reward {
 
-SubOptimality::SubOptimality(double time_limit) : time_limit_(time_limit){}
+SubOptimality::SubOptimality(double time_limit, const std::function<double(std::string)> & primal_bound_lookup_fun) : 
+time_limit_(time_limit),
+primal_bound_lookup_fun_(primal_bound_lookup_fun)
+{
 
-void SubOptimality::before_reset(scip::Model& /* model */) {
-	
+}
+
+void SubOptimality::before_reset(scip::Model& model) {
+	primal_bound_ = primal_bound_lookup_fun_(model.name());
 }
 
 Reward SubOptimality::extract(scip::Model& model, bool /* done */) {
@@ -13,7 +19,7 @@ Reward SubOptimality::extract(scip::Model& model, bool /* done */) {
     SCIP_SOL** sols_arr_ptr = SCIPgetSols(model.get_scip_ptr());
     SCIP_OBJSENSE objective = SCIPgetObjsense(model.get_scip_ptr());
     if(SCIPgetStage(model.get_scip_ptr()) == SCIP_STAGE_PROBLEM){
-        return std::numeric_limits<double>::infinity();
+        return 1.0;
     }
     double current_highest_time_below_limit = 0.0;
     double curren_best_objective;
@@ -29,18 +35,18 @@ Reward SubOptimality::extract(scip::Model& model, bool /* done */) {
         double sol_obj = SCIPgetSolOrigObj(model.get_scip_ptr(), sol);
         if((sol_time < time_limit_) 
         && (sol_time > current_highest_time_below_limit)
-        && (       (objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MAXIMIZE && sol_obj > curren_best_objective)
-                || (objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MINIMIZE && sol_obj < curren_best_objective))){
+        && (       ((objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MAXIMIZE) && (sol_obj > curren_best_objective))
+                || ((objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MINIMIZE) && (sol_obj < curren_best_objective)))){
             current_highest_time_below_limit = sol_time;
             curren_best_objective = sol_obj;
             current_best_suboptimal_sol = sol;
         }   
     }
     if(current_best_suboptimal_sol == nullptr){
-        return std::numeric_limits<double>::infinity();
+        return 1.0;
     }
 	
-	return curren_best_objective;
+	return ConfinedPrimalGapIntegral::calc_primal_gap(primal_bound_, curren_best_objective);
 }
 
 }  // namespace ecole::reward
