@@ -494,6 +494,11 @@ void bind_submodule(py::module_ const& m) {
 		&TreeRecorderObs::GetSubTreeConfinedPrimalGapIntegral,
 		py::arg("primal_obj_bound"), py::arg("time_limit"), py::arg("importance"), py::arg("assume_no_sol_before"));
 	
+	treerecorder_obs.def("get_following_confined_primal_improvement", 
+		&TreeRecorderObs::GetFollowingConfinedPrimalImprovement,
+		py::arg("primal_obj_bound"), py::arg("time_limit"), py::arg("importance"));
+	
+
 	treerecorder_obs.def_property_readonly(
 		"node_id", [](TreeRecorderObs & self) -> auto& { return self.node_id_; }, "Add description.");
 	treerecorder_obs.def_property_readonly(
