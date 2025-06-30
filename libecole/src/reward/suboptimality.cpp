@@ -21,7 +21,6 @@ Reward SubOptimality::extract(scip::Model& model, bool /* done */) {
     if(SCIPgetStage(model.get_scip_ptr()) == SCIP_STAGE_PROBLEM){
         return 1.0;
     }
-    double current_highest_time_below_limit = 0.0;
     double curren_best_objective;
     if(objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MAXIMIZE){
         curren_best_objective = std::numeric_limits<double>::min();
@@ -33,8 +32,7 @@ Reward SubOptimality::extract(scip::Model& model, bool /* done */) {
         SCIP_SOL* sol = *(sols_arr_ptr + sol_idx);
         double sol_time = SCIPgetSolTime(model.get_scip_ptr(), sol);
         double sol_obj = SCIPgetSolOrigObj(model.get_scip_ptr(), sol);
-        if((sol_time < time_limit_) 
-        && (sol_time > current_highest_time_below_limit)
+        if((sol_time < time_limit_)
         && (       ((objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MAXIMIZE) && (sol_obj > curren_best_objective))
                 || ((objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MINIMIZE) && (sol_obj < curren_best_objective)))){
             current_highest_time_below_limit = sol_time;
