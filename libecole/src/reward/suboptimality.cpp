@@ -35,7 +35,6 @@ Reward SubOptimality::extract(scip::Model& model, bool /* done */) {
         if((sol_time < time_limit_)
         && (       ((objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MAXIMIZE) && (sol_obj > curren_best_objective))
                 || ((objective == SCIP_OBJSENSE::SCIP_OBJSENSE_MINIMIZE) && (sol_obj < curren_best_objective)))){
-            current_highest_time_below_limit = sol_time;
             curren_best_objective = sol_obj;
             current_best_suboptimal_sol = sol;
         }   
