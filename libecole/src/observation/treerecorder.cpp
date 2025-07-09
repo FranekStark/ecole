@@ -65,7 +65,7 @@ SCIP_DECL_EVENTEXEC(TreeRecorder::eventExec) {
 }
 
 void TreeRecorder::addNode(SCIP* scip, SCIP_NODE* node) {
-	static long long node_cnt = 1;
+	// static long long node_cnt = 1;
 	double time = SCIPgetSolvingTime(scip);
 	long long id = SCIPnodeGetNumber(node);
 	int depth = SCIPnodeGetDepth(node);
@@ -89,8 +89,8 @@ void TreeRecorder::addNode(SCIP* scip, SCIP_NODE* node) {
 		std::numeric_limits<double>::infinity(),
 		std::numeric_limits<double>::infinity(),
 		{}};
-	std::cout << time << " - Add node node_id: " << id << ", node_cnt:" << node_cnt++ << " (" << SCIPgetProbName(scip)
-						<< ")" << std::endl;
+	//std::cout << time << " - Add node node_id: " << id << ", node_cnt:" << node_cnt++ << " (" << SCIPgetProbName(scip)
+	//					<< ")" << std::endl;
 }
 
 void TreeRecorder::markNode(SCIP* scip, SCIP_NODE* node, bool leaf, bool feasible) {
@@ -102,19 +102,19 @@ void TreeRecorder::markNode(SCIP* scip, SCIP_NODE* node, bool leaf, bool feasibl
 	if (best_sol) {
 		nodes_[node_id].primal_obj = SCIPgetSolOrigObj(scip, best_sol);
 	}
-	std::cout << time << " - ";
-	if (leaf) {
-		std::cout << "marked LEAF Node ";
-	} else {
-		std::cout << "Branched Node ";
-	}
-	if (feasible) {
-		std::cout << "FEASIBLE ";
-	} else {
-		std::cout << "(infeasible) ";
-	}
-	std::cout << "node_id: " << node_id << "(primal=" << nodes_[node_id].primal_obj << ") (" << SCIPgetProbName(scip)
-						<< ")" << std::endl;
+	// std::cout << time << " - ";
+	// if (leaf) {
+	// 	std::cout << "marked LEAF Node ";
+	// } else {
+	// 	std::cout << "Branched Node ";
+	// }
+	// if (feasible) {
+	// 	std::cout << "FEASIBLE ";
+	// } else {
+	// 	std::cout << "(infeasible) ";
+	// }
+	// std::cout << "node_id: " << node_id << "(primal=" << nodes_[node_id].primal_obj << ") (" << SCIPgetProbName(scip)
+	// 					<< ")" << std::endl;
 }
 
 void TreeRecorder::addSol(SCIP* scip, SCIP_SOL* sol) {
@@ -124,13 +124,13 @@ void TreeRecorder::addSol(SCIP* scip, SCIP_SOL* sol) {
 	long long current_node_id = SCIPnodeGetNumber(SCIPgetCurrentNode(scip));
 	nodes_[current_node_id].sols.push_back({primal_obj, time, current_node_id});
 	sols_.push_back({primal_obj, time, current_node_id});
-	std::cout << time << " - Sol (primal=" << primal_obj << ") on node_id: " << node_id << ", run "
-						<< SCIPgetSolRunnum(scip, sol) << ", type " << SCIPsolGetType(sol);
-	std::cout << ", current node " << current_node_id;
-	if (SCIPsolGetType(sol) == SCIP_SOLTYPE_HEUR) {
-		std::cout << ", heur " << SCIPheurGetName(SCIPsolGetHeur(sol));
-	}
-	std::cout << " (" << SCIPgetProbName(scip) << ")" << std::endl;
+	// std::cout << time << " - Sol (primal=" << primal_obj << ") on node_id: " << node_id << ", run "
+	// 					<< SCIPgetSolRunnum(scip, sol) << ", type " << SCIPsolGetType(sol);
+	// std::cout << ", current node " << current_node_id;
+	// if (SCIPsolGetType(sol) == SCIP_SOLTYPE_HEUR) {
+	// 	std::cout << ", heur " << SCIPheurGetName(SCIPsolGetHeur(sol));
+	// }
+	// std::cout << " (" << SCIPgetProbName(scip) << ")" << std::endl;
 }
 
 double
@@ -142,11 +142,11 @@ TreeRecorderObs::GetFollowingConfinedPrimalImprovement(double primal_obj_bound, 
 	double confined_primal_gap_improvement = 0;
 
 	double last_primal_gap = reward::ConfinedPrimalGapIntegral::calc_primal_gap(primal_obj_bound, node.primal_obj);
-	std::cout << "Node " << node_id_ << " at " << node_time << "s - primal_obj " << node.primal_obj << std::endl;
+	// std::cout << "Node " << node_id_ << " at " << node_time << "s - primal_obj " << node.primal_obj << std::endl;
 	for (auto& sol : sols_) {
 		if (sol.time_ > node_time) {
 			// incubent
-			std::cout << "Sol at " << sol.time_<< " from node " << sol.node_id << " - primal_obj " << sol.primal_obj_ << std::endl; 
+			// std::cout << "Sol at " << sol.time_<< " from node " << sol.node_id << " - primal_obj " << sol.primal_obj_ << std::endl; 
 			double primal_gap = reward::ConfinedPrimalGapIntegral::calc_primal_gap(primal_obj_bound, sol.primal_obj_);
 			// primal_gap_improvment
 			if (primal_gap < last_primal_gap) {
@@ -154,7 +154,7 @@ TreeRecorderObs::GetFollowingConfinedPrimalImprovement(double primal_obj_bound, 
 				// Discount the primal_gap improvement by the solve time
 				confined_primal_gap_improvement += primal_gap_improvement * exp(sol.time_ / alpha);
 				last_primal_gap = primal_gap;
-				std::cout << "-> sol counted " << std::endl;
+				// std::cout << "-> sol counted " << std::endl;
 			}
 		}
 	}
